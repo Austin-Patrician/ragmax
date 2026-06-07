@@ -10,6 +10,8 @@ from ragmax.application.indexing.ports import (
 from ragmax.application.indexing.profiles import list_indexing_profiles
 from ragmax.application.indexing.registry import IndexingProfileRegistry
 from ragmax.application.indexing.service import IndexingService
+from ragmax.application.retrieval.ports import AnswerGenerator, Reranker, VectorSearcher
+from ragmax.application.retrieval.service import RetrievalService
 from ragmax.core.config import Settings, get_settings
 from ragmax.core.exceptions import ConfigurationError
 from ragmax.infrastructure.db.repositories.indexing import SqlAlchemyIndexingUnitOfWork
@@ -37,12 +39,24 @@ from ragmax.infrastructure.indexing.parsers.simple_directory_reader_parser impor
 )
 from ragmax.infrastructure.qdrant.client import create_qdrant_client
 from ragmax.infrastructure.qdrant.vector_index_writer import QdrantVectorIndexWriter
+from ragmax.infrastructure.qdrant.vector_searcher import QdrantVectorSearcher
+from ragmax.infrastructure.retrieval.answer_generators.extractive_answer_generator import (
+    ExtractiveAnswerGenerator,
+)
+from ragmax.infrastructure.retrieval.rerankers.score_keyword_reranker import (
+    ScoreKeywordReranker,
+)
 from ragmax.infrastructure.storage.local_source_storage import LocalSourceStorage
 
 
 @lru_cache
 def get_indexing_service() -> IndexingService:
     return create_indexing_service()
+
+
+@lru_cache
+def get_retrieval_service() -> RetrievalService:
+    return create_retrieval_service()
 
 
 def create_indexing_service(
@@ -146,6 +160,41 @@ def create_indexing_service(
     )
 
 
+def create_retrieval_service(
+    unit_of_work_factory: Callable[[], IndexingUnitOfWork] | None = None,
+    embedding_provider: EmbeddingProvider | None = None,
+    vector_searcher: VectorSearcher | None = None,
+    reranker: Reranker | None = None,
+    answer_generator: AnswerGenerator | None = None,
+) -> RetrievalService:
+    settings = get_settings()
+    if settings.retrieval_enabled:
+        embedding_provider = embedding_provider or create_embedding_provider(settings)
+        vector_searcher = vector_searcher or QdrantVectorSearcher(
+            client=create_qdrant_client(settings)
+        )
+    elif (embedding_provider is None) != (vector_searcher is None):
+        raise ConfigurationError(
+            "embedding_provider and vector_searcher must be configured together."
+        )
+    reranker = reranker or create_reranker(settings)
+    answer_generator = answer_generator or create_answer_generator(settings)
+
+    return RetrievalService(
+        embedding_provider=embedding_provider,
+        vector_searcher=vector_searcher,
+        reranker=reranker,
+        answer_generator=answer_generator,
+        profile_registry=IndexingProfileRegistry(list_indexing_profiles()),
+        unit_of_work_factory=unit_of_work_factory
+        or (lambda: SqlAlchemyIndexingUnitOfWork(SessionLocal)),
+        default_top_k=settings.retrieval_default_top_k,
+        max_top_k=settings.retrieval_max_top_k,
+        default_rerank_top_k=settings.retrieval_rerank_default_top_k,
+        max_context_items=settings.retrieval_answer_max_context_items,
+    )
+
+
 @lru_cache
 def get_source_storage() -> LocalSourceStorage:
     settings = get_settings()
@@ -175,3 +224,21 @@ def create_embedding_provider(settings: Settings | None = None) -> EmbeddingProv
             dimension=resolved_settings.embedding_dimension,
         )
     raise ConfigurationError(f"Unsupported embedding provider: {provider}")
+
+
+def create_reranker(settings: Settings | None = None) -> Reranker:
+    resolved_settings = settings or get_settings()
+    reranker = resolved_settings.retrieval_reranker.lower()
+    if reranker == "score_keyword":
+        return ScoreKeywordReranker()
+    raise ConfigurationError(f"Unsupported retrieval reranker: {reranker}")
+
+
+def create_answer_generator(settings: Settings | None = None) -> AnswerGenerator:
+    resolved_settings = settings or get_settings()
+    generator = resolved_settings.retrieval_answer_generator.lower()
+    if generator == "extractive":
+        return ExtractiveAnswerGenerator(
+            max_contexts=resolved_settings.retrieval_answer_max_context_items
+        )
+    raise ConfigurationError(f"Unsupported retrieval answer generator: {generator}")

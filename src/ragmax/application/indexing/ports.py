@@ -84,6 +84,9 @@ class IndexNodeRepository(Protocol):
     async def list_by_source(self, source_id: str) -> tuple[IndexNode, ...]:
         ...
 
+    async def get_many(self, node_ids: Sequence[str]) -> tuple[IndexNode, ...]:
+        ...
+
     async def delete_by_source(self, source_id: str) -> int:
         ...
 

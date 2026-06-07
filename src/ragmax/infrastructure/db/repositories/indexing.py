@@ -120,6 +120,14 @@ class SqlAlchemyIndexNodeRepository:
         )
         return tuple(_node_from_model(model) for model in result.scalars())
 
+    async def get_many(self, node_ids: Sequence[str]) -> tuple[IndexNode, ...]:
+        if not node_ids:
+            return ()
+        result = await self._session.execute(
+            select(IndexNodeModel).where(IndexNodeModel.node_id.in_(node_ids))
+        )
+        return tuple(_node_from_model(model) for model in result.scalars())
+
     async def delete_by_source(self, source_id: str) -> int:
         result = await self._session.execute(
             delete(IndexNodeModel).where(IndexNodeModel.source_id == source_id)

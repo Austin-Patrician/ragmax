@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     openai_embedding_model: str = "text-embedding-3-small"
 
+    retrieval_enabled: bool = False
+    retrieval_default_top_k: int = 8
+    retrieval_max_top_k: int = 50
+    retrieval_rerank_default_top_k: int = 8
+    retrieval_answer_max_context_items: int = 8
+    retrieval_reranker: str = "score_keyword"
+    retrieval_answer_generator: str = "extractive"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
