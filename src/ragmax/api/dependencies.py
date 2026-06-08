@@ -221,7 +221,9 @@ def create_embedding_provider(settings: Settings | None = None) -> EmbeddingProv
         return OpenAIEmbeddingProvider(
             api_key=api_key,
             model_name=resolved_settings.openai_embedding_model,
+            base_url=resolved_settings.openai_base_url,
             dimension=resolved_settings.embedding_dimension,
+            batch_size=resolved_settings.openai_embedding_batch_size,
         )
     raise ConfigurationError(f"Unsupported embedding provider: {provider}")
 

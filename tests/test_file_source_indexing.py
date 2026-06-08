@@ -57,5 +57,24 @@ def test_uploaded_text_source_indexes_with_default_simple_directory_reader(
     index_payload = index_response.json()
     assert index_payload["effective_parser"] == "simple_directory_reader"
     assert index_payload["job"]["effective_parser"] == "simple_directory_reader"
-    assert index_payload["effective_profile"]["parser"] == "simple_directory_reader"
+    assert "parser" not in index_payload["effective_profile"]
+    assert index_payload["effective_profile"]["node_graph_mode"] == "parent_child"
     assert index_payload["node_count"] > 0
+
+    artifacts_response = persisted_client.get(
+        f"/api/v1/indexing/jobs/{index_payload['job']['job_id']}/artifacts"
+    )
+    assert artifacts_response.status_code == 200
+    artifacts = artifacts_response.json()
+    assert artifacts["job"]["effective_parser"] == "simple_directory_reader"
+    assert artifacts["blocks"]
+    assert artifacts["nodes"]
+    block_ids = {block["block_id"] for block in artifacts["blocks"]}
+    node_block_ids = {
+        block_id
+        for node in artifacts["nodes"]
+        for block_id in node["block_ids"]
+    }
+    assert node_block_ids <= block_ids
+    assert artifacts["metrics"]["block_count"] == len(artifacts["blocks"])
+    assert "parse_ms" in artifacts["metrics"]["performance"]

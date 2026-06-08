@@ -10,10 +10,20 @@ from ragmax.api.dependencies import (
     get_indexing_service,
     get_source_storage,
 )
+from ragmax.core.config import get_settings
 from ragmax.infrastructure.db.base import Base, import_models
 from ragmax.infrastructure.db.repositories.indexing import SqlAlchemyIndexingUnitOfWork
 from ragmax.infrastructure.storage.local_source_storage import LocalSourceStorage
 from ragmax.main import create_app
+
+
+@pytest.fixture(autouse=True)
+def isolate_runtime_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    monkeypatch.setenv("VECTOR_INDEX_ENABLED", "false")
+    monkeypatch.setenv("RETRIEVAL_ENABLED", "false")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture

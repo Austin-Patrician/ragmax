@@ -30,7 +30,9 @@ class Settings(BaseSettings):
     embedding_dimension: int = 384
     hash_embedding_model: str = "hash-embedding-v1"
     openai_api_key: SecretStr | None = None
+    openai_base_url: str | None = None
     openai_embedding_model: str = "text-embedding-3-small"
+    openai_embedding_batch_size: int = 16
 
     retrieval_enabled: bool = False
     retrieval_default_top_k: int = 8

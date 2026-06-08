@@ -20,10 +20,10 @@ class HeuristicSourceParser:
         source: SourceInput,
         options: Mapping[str, Any] | None = None,
     ) -> SourceDocument:
-        if source.blocks:
+        if source.input_blocks:
             blocks = tuple(
                 self._parse_block(source.source_id, block, index)
-                for index, block in enumerate(source.blocks)
+                for index, block in enumerate(source.input_blocks)
             )
         elif source.text and source.text.strip():
             blocks = tuple(self._parse_text(source.source_id, source.text))

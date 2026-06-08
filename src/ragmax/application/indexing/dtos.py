@@ -5,7 +5,7 @@ from ragmax.domain.indexing.analysis import IndexingSummary, SourceAnalysis
 from ragmax.domain.indexing.documents import SourceDocument
 from ragmax.domain.indexing.entities import IndexNode
 from ragmax.domain.indexing.profiles import IndexingProfile
-from ragmax.domain.indexing.records import IndexJobRecord, SourceRecord
+from ragmax.domain.indexing.records import IndexBlockRecord, IndexJobRecord, SourceRecord
 
 
 @dataclass(frozen=True)
@@ -26,7 +26,7 @@ class SourceInput:
     filename: str
     media_type: str
     text: str | None = None
-    blocks: tuple[SourceInputBlock, ...] = field(default_factory=tuple)
+    input_blocks: tuple[SourceInputBlock, ...] = field(default_factory=tuple)
     file_path: str | None = None
     file_size: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -56,7 +56,7 @@ class CreateSourceCommand:
     source_id: str | None = None
     source_hash: str | None = None
     text: str | None = None
-    blocks: tuple[SourceInputBlock, ...] = field(default_factory=tuple)
+    input_blocks: tuple[SourceInputBlock, ...] = field(default_factory=tuple)
     file_path: str | None = None
     file_size: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -89,6 +89,13 @@ class RunIndexJobResult:
     effective_parser: str
     nodes: tuple[IndexNode, ...]
     summary: IndexingSummary
+
+
+@dataclass(frozen=True)
+class IndexingArtifactsResult:
+    job: IndexJobRecord
+    blocks: tuple[IndexBlockRecord, ...]
+    nodes: tuple[IndexNode, ...]
 
 
 @dataclass(frozen=True)

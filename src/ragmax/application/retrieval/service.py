@@ -68,6 +68,7 @@ class RetrievalService:
         )
         hydrated_nodes = await self._hydrate_nodes(tuple(hit.node_id for hit in hits))
         nodes_by_id = {node.node_id: node for node in hydrated_nodes}
+        context_nodes_by_child_id = await self._hydrate_parent_contexts(hydrated_nodes)
 
         results: list[RetrievedNode] = []
         seen_node_ids: set[str] = set()
@@ -85,6 +86,7 @@ class RetrievalService:
                     score=hit.score,
                     collection_name=hit.collection_name,
                     citation=_citation_from_node(node),
+                    context_node=context_nodes_by_child_id.get(node.node_id),
                     payload=hit.payload,
                 )
             )
@@ -157,6 +159,24 @@ class RetrievalService:
         async with self._unit_of_work_factory() as uow:
             return await uow.nodes.get_many(node_ids)
 
+    async def _hydrate_parent_contexts(
+        self,
+        nodes: tuple[IndexNode, ...],
+    ) -> dict[str, IndexNode]:
+        parent_ids = tuple(
+            sorted({node.parent_node_id for node in nodes if node.parent_node_id})
+        )
+        if not parent_ids:
+            return {}
+
+        parent_nodes = await self._hydrate_nodes(parent_ids)
+        parents_by_id = {node.node_id: node for node in parent_nodes}
+        return {
+            node.node_id: parents_by_id[node.parent_node_id]
+            for node in nodes
+            if node.parent_node_id is not None and node.parent_node_id in parents_by_id
+        }
+
     def _text_collection_names(self) -> tuple[str, ...]:
         return tuple(
             sorted({profile.text_collection for profile in self._profile_registry.list()})
@@ -201,7 +221,8 @@ def _context_items_from_reranked(
     for index, reranked_node in enumerate(reranked_nodes, start=1):
         retrieved_node = reranked_node.retrieved_node
         node = retrieved_node.node
-        metadata = dict(node.metadata)
+        context_node = retrieved_node.context_node or node
+        metadata = dict(context_node.metadata)
         metadata["retrieval"] = {
             "rank": reranked_node.rank,
             "vector_score": reranked_node.vector_score,
@@ -209,24 +230,27 @@ def _context_items_from_reranked(
             "rerank_reason": reranked_node.reason,
             "rerank_metadata": reranked_node.metadata,
             "payload": retrieved_node.payload,
+            "matched_node_id": node.node_id,
+            "context_node_id": context_node.node_id,
+            "expanded_from_parent": context_node.node_id != node.node_id,
         }
         contexts.append(
             RetrievalContextItem(
                 context_id=f"ctx_{index}",
                 citation_id=str(index),
-                node_id=node.node_id,
-                source_id=node.source_id,
-                notebook_id=node.notebook_id,
-                text=node.text,
+                node_id=context_node.node_id,
+                source_id=context_node.source_id,
+                notebook_id=context_node.notebook_id,
+                text=context_node.text,
                 score=reranked_node.rerank_score,
                 vector_score=reranked_node.vector_score,
                 rerank_score=reranked_node.rerank_score,
                 collection_name=retrieved_node.collection_name,
-                content_type=node.content_type,
-                page_start=node.page_start,
-                page_end=node.page_end,
-                section_path=node.section_path,
-                citation=retrieved_node.citation,
+                content_type=context_node.content_type,
+                page_start=context_node.page_start,
+                page_end=context_node.page_end,
+                section_path=context_node.section_path,
+                citation=_citation_from_node(context_node),
                 metadata=metadata,
             )
         )

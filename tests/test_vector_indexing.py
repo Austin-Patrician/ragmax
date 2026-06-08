@@ -116,17 +116,40 @@ def test_index_job_writes_vectors_and_persists_vector_metadata(
     assert payload["job"]["summary"]["vector_index"]["node_count"] > 0
     assert vector_writer.upserts
     assert vector_writer.upserts[0]["embedding_model"] == "hash-test"
+    vectorized_nodes = tuple(vector_writer.upserts[0]["nodes"])
+    assert all(node.content_type != "section" for node in vectorized_nodes)
 
     nodes_response = client.get("/api/v1/sources/source-vector-1/nodes")
     assert nodes_response.status_code == 200
     nodes = nodes_response.json()
     assert nodes
-    assert all(node["embedding_model"] == "hash-test" for node in nodes)
-    assert all(node["metadata"]["vector_point_id"].startswith("point-") for node in nodes)
+    parent_nodes = [node for node in nodes if node["content_type"] == "section"]
+    vectorized_node_ids = {node.node_id for node in vectorized_nodes}
+    assert parent_nodes
+    assert all(node["embedding_model"] is None for node in parent_nodes)
+    assert all("vector_point_id" not in node["metadata"] for node in parent_nodes)
+    assert all(
+        node["embedding_model"] == "hash-test"
+        for node in nodes
+        if node["node_id"] in vectorized_node_ids
+    )
+    assert all(
+        node["metadata"]["vector_point_id"].startswith("point-")
+        for node in nodes
+        if node["node_id"] in vectorized_node_ids
+    )
+
+    artifacts_response = client.get(
+        f"/api/v1/indexing/jobs/{payload['job']['job_id']}/artifacts"
+    )
+    assert artifacts_response.status_code == 200
+    artifacts = artifacts_response.json()
+    assert set(artifacts["vectorized_node_ids"]) == vectorized_node_ids
+    assert artifacts["metrics"]["vectorized_count"] == len(vectorized_nodes)
 
     delete_response = client.delete("/api/v1/sources/source-vector-1/index")
     assert delete_response.status_code == 200
-    assert delete_response.json()["vector_deleted_count"] == len(nodes)
+    assert delete_response.json()["vector_deleted_count"] == len(vectorized_nodes)
     assert vector_writer.deletes == [
         {"collection_name": "ragmax_text_nodes", "source_id": "source-vector-1"}
     ]

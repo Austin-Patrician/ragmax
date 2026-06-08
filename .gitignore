@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
-storage/
+/storage/
 
 .env
 .DS_Store

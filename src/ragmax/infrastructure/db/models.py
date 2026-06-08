@@ -20,7 +20,7 @@ class SourceModel(Base):
     media_type: Mapped[str] = mapped_column(String(128))
     source_hash: Mapped[str] = mapped_column(String(64), index=True)
     text: Mapped[str | None] = mapped_column(Text)
-    blocks: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    input_blocks: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     file_path: Mapped[str | None] = mapped_column(String(1024))
     file_size: Mapped[int | None] = mapped_column(Integer)
     source_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
@@ -51,6 +51,39 @@ class IndexJobModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class IndexBlockModel(Base):
+    __tablename__ = "index_blocks"
+    __table_args__ = (
+        Index("ix_index_blocks_source_order", "source_id", "order_index"),
+        Index("ix_index_blocks_job_order", "job_id", "order_index"),
+        Index("ix_index_blocks_source_type", "source_id", "block_type"),
+    )
+
+    block_id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    job_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("index_jobs.job_id", ondelete="CASCADE"),
+        index=True,
+    )
+    source_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("sources.source_id", ondelete="CASCADE"),
+        index=True,
+    )
+    notebook_id: Mapped[str] = mapped_column(String(64), index=True)
+    order_index: Mapped[int] = mapped_column(Integer)
+    block_type: Mapped[str] = mapped_column(String(32), index=True)
+    text: Mapped[str] = mapped_column(Text)
+    page_no: Mapped[int | None] = mapped_column(Integer)
+    bbox: Mapped[list[float] | None] = mapped_column(JSON)
+    section_hint: Mapped[list[str]] = mapped_column(JSON, default=list)
+    parser_name: Mapped[str | None] = mapped_column(String(64), index=True)
+    parser_version: Mapped[str | None] = mapped_column(String(128))
+    content_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+    block_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
 class IndexNodeModel(Base):

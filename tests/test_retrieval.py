@@ -254,6 +254,60 @@ def test_retrieval_answer_reranks_and_returns_context_ready_items(
     assert call["limit"] == 3
 
 
+def test_retrieval_answer_expands_child_hit_to_parent_context(
+    retrieval_client: tuple[TestClient, FakeVectorSearcher],
+) -> None:
+    client, vector_searcher = retrieval_client
+    create_response = client.post(
+        "/api/v1/sources",
+        json={
+            "source_id": "source-parent-context",
+            "notebook_id": "notebook-1",
+            "filename": "parent-guide.md",
+            "media_type": "text/markdown",
+            "text": (
+                "# Refund Policy\n\n"
+                "## Approval\n\n"
+                "Refund approval requires finance review before payout is released."
+            ),
+        },
+    )
+    assert create_response.status_code == 201
+
+    index_response = client.post("/api/v1/sources/source-parent-context/index", json={})
+    assert index_response.status_code == 200
+    nodes_response = client.get("/api/v1/sources/source-parent-context/nodes")
+    assert nodes_response.status_code == 200
+    nodes = nodes_response.json()
+    child = next(node for node in nodes if node["parent_node_id"])
+    parent = next(node for node in nodes if node["node_id"] == child["parent_node_id"])
+
+    vector_searcher.hits = (
+        VectorSearchHit(
+            node_id=child["node_id"],
+            score=0.91,
+            collection_name="ragmax_text_nodes",
+            payload={"node_id": child["node_id"], "node_role": "child"},
+        ),
+    )
+
+    response = client.post(
+        "/api/v1/retrieval/answer",
+        json={
+            "query": "refund approval finance",
+            "notebook_id": "notebook-1",
+        },
+    )
+
+    assert response.status_code == 200
+    context = response.json()["contexts"][0]
+    assert context["node_id"] == parent["node_id"]
+    assert context["content_type"] == "section"
+    assert context["metadata"]["retrieval"]["matched_node_id"] == child["node_id"]
+    assert context["metadata"]["retrieval"]["context_node_id"] == parent["node_id"]
+    assert context["metadata"]["retrieval"]["expanded_from_parent"] is True
+
+
 def _create_indexed_source(
     client: TestClient,
     *,

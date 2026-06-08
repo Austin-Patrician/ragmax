@@ -1,0 +1,46 @@
+.shell {
+  min-height: 100vh;
+}
+
+.header {
+  border-bottom: 1px solid var(--ragmax-line);
+  background: rgba(255, 255, 251, 0.92);
+  backdrop-filter: blur(12px);
+}
+
+.navbar {
+  border-right: 1px solid var(--ragmax-line);
+  background: rgba(248, 248, 241, 0.92);
+}
+
+.main {
+  min-height: 100vh;
+}
+
+.mark {
+  align-items: center;
+  background: var(--ragmax-ink);
+  color: #f7f7f2;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.title {
+  color: var(--ragmax-ink);
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.navItem {
+  border: 1px solid transparent;
+  color: var(--ragmax-ink);
+  margin-bottom: 6px;
+}
+
+.navItem[data-active] {
+  background: rgba(31, 122, 91, 0.1);
+  border-color: rgba(31, 122, 91, 0.24);
+  color: var(--ragmax-accent-strong);
+}

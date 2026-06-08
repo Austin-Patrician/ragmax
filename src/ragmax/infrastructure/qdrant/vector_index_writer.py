@@ -135,6 +135,7 @@ def _payload_from_node(
         "section_path": list(node.section_path),
         "block_ids": list(node.block_ids),
         "parent_node_id": node.parent_node_id,
+        "node_role": _node_role(node),
         "indexing_profile": node.indexing_profile,
         "parser_version": node.parser_version,
         "chunker_version": node.chunker_version,
@@ -143,3 +144,11 @@ def _payload_from_node(
         "metadata": node.metadata,
         "text": node.text,
     }
+
+
+def _node_role(node: IndexNode) -> str:
+    if node.parent_node_id:
+        return "child"
+    if node.content_type == "section":
+        return "parent"
+    return "leaf"

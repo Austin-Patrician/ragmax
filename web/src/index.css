@@ -1,0 +1,42 @@
+:root {
+  --ragmax-bg: #f7f7f2;
+  --ragmax-ink: #111713;
+  --ragmax-muted: #637067;
+  --ragmax-line: #dfe2d6;
+  --ragmax-panel: #fffffb;
+  --ragmax-accent: #1f7a5b;
+  --ragmax-accent-strong: #0d573f;
+  --ragmax-warning: #b26b18;
+  --ragmax-font: 'IBM Plex Sans', 'Aptos', 'Segoe UI', sans-serif;
+  --ragmax-mono: 'IBM Plex Mono', 'Cascadia Mono', Consolas, monospace;
+  background:
+    linear-gradient(135deg, rgba(31, 122, 91, 0.09), transparent 34%),
+    linear-gradient(180deg, #fbfbf5 0%, var(--ragmax-bg) 100%);
+  color: var(--ragmax-ink);
+  font-family: var(--ragmax-font);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+code,
+pre {
+  font-family: var(--ragmax-mono);
+}
+
+#root {
+  min-height: 100vh;
+}

@@ -9,6 +9,9 @@ class BlockType(StrEnum):
     TABLE = "table"
     IMAGE = "image"
     OCR = "ocr"
+    CODE = "code"
+    LIST = "list"
+    QUOTE = "quote"
 
 
 @dataclass(frozen=True)

@@ -16,6 +16,9 @@ class BasicNodeEnricher:
         enriched_nodes: list[IndexNode] = []
         for node in nodes:
             metadata = dict(node.metadata)
+            if not metadata.get("page_numbers") and node.page_start is not None:
+                page_end = node.page_end or node.page_start
+                metadata["page_numbers"] = list(range(node.page_start, page_end + 1))
             metadata.update(
                 {
                     "source_filename": document.filename,

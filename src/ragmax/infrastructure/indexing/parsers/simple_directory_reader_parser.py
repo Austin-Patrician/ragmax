@@ -9,7 +9,7 @@ from ragmax.application.indexing.dtos import SourceInput
 from ragmax.core.exceptions import InvalidRequestError
 from ragmax.domain.indexing.blocks import ContentBlock
 from ragmax.domain.indexing.documents import SourceDocument
-from ragmax.infrastructure.indexing.parsers.block_parsing import blocks_from_text
+from ragmax.infrastructure.indexing.parsers.structured_parsing import markdown_to_blocks
 
 SIMPLE_DIRECTORY_READER_EXTENSIONS = (
     ".csv",
@@ -89,9 +89,9 @@ class SimpleDirectoryReaderSourceParser:
                 }
             )
             page_no = _page_no_from_metadata(metadata) or document_index
-            parsed_blocks = blocks_from_text(
+            parsed_blocks = markdown_to_blocks(
                 source_id=source.source_id,
-                text=text,
+                markdown=text,
                 start_index=block_index,
                 page_no=page_no,
                 metadata=metadata,

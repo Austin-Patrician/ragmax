@@ -5,7 +5,7 @@ from typing import Any, Protocol, Self
 from ragmax.application.indexing.dtos import SourceInput
 from ragmax.domain.indexing.documents import SourceDocument
 from ragmax.domain.indexing.entities import IndexNode
-from ragmax.domain.indexing.records import IndexJobRecord, SourceRecord
+from ragmax.domain.indexing.records import IndexBlockRecord, IndexJobRecord, SourceRecord
 
 
 @dataclass(frozen=True)
@@ -84,7 +84,27 @@ class IndexNodeRepository(Protocol):
     async def list_by_source(self, source_id: str) -> tuple[IndexNode, ...]:
         ...
 
+    async def list_by_job(self, job_id: str) -> tuple[IndexNode, ...]:
+        ...
+
     async def get_many(self, node_ids: Sequence[str]) -> tuple[IndexNode, ...]:
+        ...
+
+    async def delete_by_source(self, source_id: str) -> int:
+        ...
+
+
+class IndexBlockRepository(Protocol):
+    async def replace_for_source(
+        self,
+        *,
+        source_id: str,
+        job_id: str,
+        blocks: Sequence[IndexBlockRecord],
+    ) -> tuple[IndexBlockRecord, ...]:
+        ...
+
+    async def list_by_job(self, job_id: str) -> tuple[IndexBlockRecord, ...]:
         ...
 
     async def delete_by_source(self, source_id: str) -> int:
@@ -94,6 +114,7 @@ class IndexNodeRepository(Protocol):
 class IndexingUnitOfWork(Protocol):
     sources: SourceRepository
     jobs: IndexJobRepository
+    blocks: IndexBlockRepository
     nodes: IndexNodeRepository
 
     async def __aenter__(self) -> Self:

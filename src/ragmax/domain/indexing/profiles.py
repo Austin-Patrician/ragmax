@@ -10,14 +10,19 @@ class IndexingProfileName(StrEnum):
     SCANNED_PDF = "scanned_pdf"
 
 
+class NodeGraphMode(StrEnum):
+    FLAT = "flat"
+    PARENT_CHILD = "parent_child"
+
+
 @dataclass(frozen=True)
 class IndexingProfile:
     name: IndexingProfileName
     description: str
-    parser: str
     chunker: str
     chunk_size: int
     chunk_overlap: int
+    node_graph_mode: NodeGraphMode = NodeGraphMode.FLAT
     supported_media_types: tuple[str, ...] = field(default_factory=tuple)
     text_collection: str = "ragmax_text_nodes"
     visual_collection: str = "ragmax_visual_nodes"
@@ -44,10 +49,10 @@ class IndexingProfile:
         return {
             "name": self.name.value,
             "description": self.description,
-            "parser": self.parser,
             "chunker": self.chunker,
             "chunk_size": self.chunk_size,
             "chunk_overlap": self.chunk_overlap,
+            "node_graph_mode": self.node_graph_mode.value,
             "supported_media_types": list(self.supported_media_types),
             "text_collection": self.text_collection,
             "visual_collection": self.visual_collection,

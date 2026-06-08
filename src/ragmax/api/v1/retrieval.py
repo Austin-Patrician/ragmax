@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from ragmax.api.dependencies import get_retrieval_service
 from ragmax.application.retrieval.dtos import AnswerCommand, RetrievalCommand
 from ragmax.application.retrieval.service import RetrievalService
-from ragmax.core.exceptions import ConfigurationError, InvalidRequestError
+from ragmax.core.exceptions import ConfigurationError, ExternalServiceError, InvalidRequestError
 
 router = APIRouter(prefix="/retrieval", tags=["retrieval"])
 
@@ -122,7 +122,7 @@ async def search_retrieval(
         )
     except InvalidRequestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except ConfigurationError as exc:
+    except (ConfigurationError, ExternalServiceError) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return RetrievalSearchResponse(
@@ -174,7 +174,7 @@ async def answer_retrieval(
         )
     except InvalidRequestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except ConfigurationError as exc:
+    except (ConfigurationError, ExternalServiceError) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return RetrievalAnswerResponse(

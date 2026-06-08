@@ -14,7 +14,12 @@ from ragmax.application.indexing.dtos import (
     SourceInputBlock,
 )
 from ragmax.application.indexing.service import IndexingService
-from ragmax.core.exceptions import ConfigurationError, InvalidRequestError, NotFoundError
+from ragmax.core.exceptions import (
+    ConfigurationError,
+    ExternalServiceError,
+    InvalidRequestError,
+    NotFoundError,
+)
 
 router = APIRouter(prefix="/indexing", tags=["indexing"])
 
@@ -22,10 +27,10 @@ router = APIRouter(prefix="/indexing", tags=["indexing"])
 class IndexingProfileResponse(BaseModel):
     name: str
     description: str
-    parser: str
     chunker: str
     chunk_size: int = Field(gt=0)
     chunk_overlap: int = Field(ge=0)
+    node_graph_mode: str
     supported_media_types: list[str]
     text_collection: str
     visual_collection: str
@@ -104,6 +109,23 @@ class ContentBlockResponse(BaseModel):
     metadata: dict[str, Any]
 
 
+class IndexBlockResponse(BaseModel):
+    block_id: str
+    job_id: str
+    source_id: str
+    notebook_id: str
+    order_index: int
+    block_type: str
+    text: str
+    page_no: int | None
+    bbox: tuple[float, float, float, float] | None
+    section_hint: list[str]
+    parser_name: str | None
+    parser_version: str | None
+    content_hash: str | None
+    metadata: dict[str, Any]
+
+
 class IndexNodeResponse(BaseModel):
     node_id: str
     source_id: str
@@ -129,8 +151,14 @@ class IndexingSummaryResponse(BaseModel):
     block_count: int
     node_count: int
     page_count: int
+    block_types: dict[str, int]
     content_types: dict[str, int]
     modalities: dict[str, int]
+    node_roles: dict[str, int]
+    vectorized_count: int
+    chunk_length_stats: dict[str, int]
+    quality: dict[str, Any]
+    performance: dict[str, float]
 
 
 class IndexJobResponse(BaseModel):
@@ -156,6 +184,14 @@ class IndexingPreviewResponse(BaseModel):
     blocks: list[ContentBlockResponse]
     nodes: list[IndexNodeResponse]
     summary: IndexingSummaryResponse
+
+
+class IndexingArtifactsResponse(BaseModel):
+    job: IndexJobResponse
+    blocks: list[IndexBlockResponse]
+    nodes: list[IndexNodeResponse]
+    vectorized_node_ids: list[str]
+    metrics: dict[str, Any]
 
 
 @router.get("/profiles", response_model=list[IndexingProfileResponse])
@@ -202,7 +238,7 @@ async def preview_indexing(
                     text=request.source.text,
                     file_path=request.source.file_path,
                     file_size=request.source.file_size,
-                    blocks=tuple(
+                    input_blocks=tuple(
                         SourceInputBlock(
                             block_id=block.block_id,
                             block_type=block.block_type,
@@ -220,7 +256,7 @@ async def preview_indexing(
         )
     except InvalidRequestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except ConfigurationError as exc:
+    except (ConfigurationError, ExternalServiceError) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return build_indexing_preview_response(result)
@@ -283,4 +319,60 @@ async def get_indexing_job(
         node_count=job.node_count,
         requested_parser=job.requested_parser,
         effective_parser=job.effective_parser,
+    )
+
+
+@router.get("/jobs/{job_id}/artifacts", response_model=IndexingArtifactsResponse)
+async def get_indexing_artifacts(
+    job_id: str,
+    service: Annotated[IndexingService, Depends(get_indexing_service)],
+) -> IndexingArtifactsResponse:
+    try:
+        result = await service.get_indexing_artifacts(job_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    vectorized_node_ids = [
+        node.node_id
+        for node in result.nodes
+        if node.metadata.get("vector_point_id") is not None
+    ]
+    return IndexingArtifactsResponse(
+        job=IndexJobResponse(
+            job_id=result.job.job_id,
+            source_id=result.job.source_id,
+            status=result.job.status.value,
+            requested_profile=result.job.requested_profile,
+            effective_profile=result.job.effective_profile,
+            overrides=result.job.overrides,
+            summary=result.job.summary,
+            error_message=result.job.error_message,
+            vector_status=result.job.vector_status,
+            vector_error_message=result.job.vector_error_message,
+            node_count=result.job.node_count,
+            requested_parser=result.job.requested_parser,
+            effective_parser=result.job.effective_parser,
+        ),
+        blocks=[
+            IndexBlockResponse.model_validate(
+                {
+                    **asdict(block),
+                    "block_type": block.block_type.value,
+                    "section_hint": list(block.section_hint),
+                }
+            )
+            for block in result.blocks
+        ],
+        nodes=[
+            IndexNodeResponse.model_validate(
+                {
+                    **asdict(node),
+                    "section_path": list(node.section_path),
+                    "block_ids": list(node.block_ids),
+                }
+            )
+            for node in result.nodes
+        ],
+        vectorized_node_ids=vectorized_node_ids,
+        metrics=result.job.summary,
     )

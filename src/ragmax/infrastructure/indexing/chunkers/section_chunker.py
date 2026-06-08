@@ -1,7 +1,7 @@
 from ragmax.domain.indexing.blocks import BlockType, ContentBlock
 from ragmax.domain.indexing.documents import SourceDocument
 from ragmax.domain.indexing.entities import IndexNode
-from ragmax.domain.indexing.profiles import IndexingProfile
+from ragmax.domain.indexing.profiles import IndexingProfile, NodeGraphMode
 from ragmax.infrastructure.indexing.chunkers.base import BaseChunker
 
 
@@ -25,7 +25,7 @@ class SectionAwareChunker(BaseChunker):
             heading_prefix = " > ".join(active_path)
 
             parent_node_id: str | None = None
-            if text_blocks and profile.options.get("parent_child", False):
+            if text_blocks and profile.node_graph_mode == NodeGraphMode.PARENT_CHILD:
                 parent_text = self._non_empty_text(text_blocks)
                 if heading_prefix:
                     parent_text = f"{heading_prefix}\n\n{parent_text}"
@@ -44,7 +44,12 @@ class SectionAwareChunker(BaseChunker):
             if text_blocks:
                 section_text = self._non_empty_text(text_blocks)
                 for chunk in self._split_text(section_text, profile):
-                    text = f"{heading_prefix}\n\n{chunk}" if heading_prefix else chunk
+                    # Only include heading_prefix in child nodes if there's no parent node
+                    # (parent_node already contains the heading context)
+                    if parent_node_id is None and heading_prefix:
+                        text = f"{heading_prefix}\n\n{chunk}"
+                    else:
+                        text = chunk
                     nodes.append(
                         self._make_node(
                             document=document,
@@ -60,7 +65,8 @@ class SectionAwareChunker(BaseChunker):
 
             for table_block in table_blocks:
                 table_text = table_block.normalized_text
-                if heading_prefix:
+                # Only include heading_prefix in table nodes if there's no parent node
+                if parent_node_id is None and heading_prefix:
                     table_text = f"{heading_prefix}\n\n{table_text}"
                 nodes.append(
                     self._make_node(

@@ -25,7 +25,12 @@ from ragmax.application.indexing.dtos import (
     SourceInputBlock,
 )
 from ragmax.application.indexing.service import IndexingService
-from ragmax.core.exceptions import ConfigurationError, InvalidRequestError, NotFoundError
+from ragmax.core.exceptions import (
+    ConfigurationError,
+    ExternalServiceError,
+    InvalidRequestError,
+    NotFoundError,
+)
 from ragmax.domain.indexing.entities import IndexNode
 from ragmax.domain.indexing.records import IndexJobRecord, SourceRecord
 from ragmax.infrastructure.storage.local_source_storage import LocalSourceStorage
@@ -68,7 +73,7 @@ class SourceResponse(BaseModel):
     media_type: str
     source_hash: str
     text: str | None
-    blocks: list[dict[str, Any]]
+    input_blocks: list[dict[str, Any]]
     has_file: bool
     file_size: int | None
     metadata: dict[str, Any]
@@ -146,7 +151,7 @@ async def create_source(
                 filename=request.filename,
                 media_type=request.media_type,
                 text=request.text,
-                blocks=tuple(_to_source_input_block(block) for block in request.blocks),
+                input_blocks=tuple(_to_source_input_block(block) for block in request.blocks),
                 metadata=request.metadata,
             )
         )
@@ -219,7 +224,7 @@ async def preview_source_indexing(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except InvalidRequestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except ConfigurationError as exc:
+    except (ConfigurationError, ExternalServiceError) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return build_indexing_preview_response(result)
@@ -249,7 +254,7 @@ async def run_source_indexing(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except InvalidRequestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except ConfigurationError as exc:
+    except (ConfigurationError, ExternalServiceError) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return RunIndexJobResponse(
@@ -314,7 +319,7 @@ def _source_response(source: SourceRecord) -> SourceResponse:
         media_type=source.media_type,
         source_hash=source.source_hash,
         text=source.text,
-        blocks=list(source.blocks),
+        input_blocks=list(source.input_blocks),
         has_file=source.file_path is not None,
         file_size=source.file_size,
         metadata=source.metadata,
@@ -352,7 +357,10 @@ def _parse_metadata_form(metadata: str | None) -> dict[str, Any]:
 
 
 def _media_type_for_upload(file: UploadFile, filename: str) -> str:
-    if file.content_type:
+    if file.content_type and file.content_type not in {
+        "application/octet-stream",
+        "multipart/form-data",
+    }:
         return file.content_type
     guessed, _ = mimetypes.guess_type(filename)
     return guessed or "application/octet-stream"

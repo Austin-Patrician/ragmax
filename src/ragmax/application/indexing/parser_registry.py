@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from ragmax.application.indexing.dtos import SourceInput
 from ragmax.application.indexing.ports import SourceParser
 from ragmax.core.exceptions import InvalidRequestError
-from ragmax.domain.indexing.profiles import IndexingProfile
 
 
 @dataclass(frozen=True)
@@ -61,12 +60,10 @@ class SourceParserRegistry:
         *,
         source: SourceInput,
         requested_parser: str | None,
-        requested_profile: IndexingProfile | None,
     ) -> ResolvedParser:
         parser_name = self._resolve_name(
             source=source,
             requested_parser=requested_parser,
-            requested_profile=requested_profile,
         )
         parser = self._parsers.get(parser_name)
         spec = self._specs.get(parser_name)
@@ -81,14 +78,11 @@ class SourceParserRegistry:
         *,
         source: SourceInput,
         requested_parser: str | None,
-        requested_profile: IndexingProfile | None,
     ) -> str:
         if requested_parser:
             return requested_parser
-        if source.text or source.blocks:
+        if source.text or source.input_blocks:
             return self._inline_parser
-        if requested_profile is not None:
-            return requested_profile.parser
         return self._default_file_parser
 
     def _validate_source_supported(self, source: SourceInput, spec: ParserSpec) -> None:

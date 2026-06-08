@@ -41,8 +41,20 @@ class BaseChunker:
         page_numbers = [block.page_no for block in blocks if block.page_no is not None]
         page_start = min(page_numbers) if page_numbers else None
         page_end = max(page_numbers) if page_numbers else None
-        bbox = next((block.bbox for block in blocks if block.bbox is not None), None)
+
+        # Apply bbox aggregation strategy from profile options
+        bbox_strategy = profile.options.get("bbox_aggregation_strategy", "union")
+        bbox = self._aggregate_bboxes(blocks, strategy=bbox_strategy)
+
         block_ids = tuple(block.block_id for block in blocks)
+
+        # Prioritize section_hint from blocks if available (parser-provided structure)
+        effective_section_path = section_path
+        if blocks:
+            first_block = blocks[0] if isinstance(blocks, (list, tuple)) else blocks
+            if hasattr(first_block, "section_hint") and first_block.section_hint:
+                effective_section_path = first_block.section_hint
+
         node_id = self._build_node_id(
             document.source_id,
             profile.name.value,
@@ -60,7 +72,7 @@ class BaseChunker:
             content_type=content_type,
             page_start=page_start,
             page_end=page_end,
-            section_path=section_path,
+            section_path=effective_section_path,
             block_ids=block_ids,
             parent_node_id=parent_node_id,
             bbox=bbox,
@@ -115,6 +127,77 @@ class BaseChunker:
     def _clean_heading(self, text: str) -> str:
         cleaned = text.strip().lstrip("#").strip()
         return re.sub(r"\s+", " ", cleaned)
+
+    def _aggregate_bboxes(
+        self,
+        blocks: list[ContentBlock] | tuple[ContentBlock, ...],
+        strategy: str = "union",
+    ) -> tuple[float, float, float, float] | None:
+        """
+        Aggregate bboxes from multiple blocks using the specified strategy.
+
+        Args:
+            blocks: List of ContentBlocks
+            strategy: "union" (compute bounding box) or "first" (take first bbox)
+
+        Returns:
+            Aggregated bbox as (x0, y0, x1, y1) or None if no bboxes available
+        """
+        if strategy == "first":
+            return self._aggregate_bboxes_first(blocks)
+        elif strategy == "union":
+            return self._aggregate_bboxes_union(blocks)
+        else:
+            # Default to union for unknown strategies
+            return self._aggregate_bboxes_union(blocks)
+
+    def _aggregate_bboxes_first(
+        self,
+        blocks: list[ContentBlock] | tuple[ContentBlock, ...],
+    ) -> tuple[float, float, float, float] | None:
+        """
+        Take the first available bbox (backward compatible behavior).
+
+        This is useful for:
+        - Backward compatibility
+        - Simple cases where first block represents the whole node
+        """
+        return next((block.bbox for block in blocks if block.bbox is not None), None)
+
+    def _aggregate_bboxes_union(
+        self,
+        blocks: list[ContentBlock] | tuple[ContentBlock, ...],
+    ) -> tuple[float, float, float, float] | None:
+        """
+        Compute the minimum bounding box (union) that encompasses all block bboxes.
+
+        Example:
+            Block 1: (100, 200, 300, 250)  # Top block
+            Block 2: (100, 260, 300, 310)  # Middle block
+            Block 3: (100, 320, 300, 370)  # Bottom block
+            Union:   (100, 200, 300, 370)  # Encompasses all
+
+        This is useful for:
+        - Multi-block sections spanning multiple regions
+        - Accurate PDF highlighting of entire sections
+        - Spatial queries ("find content in page bottom half")
+        """
+        valid_bboxes = [block.bbox for block in blocks if block.bbox is not None]
+
+        if not valid_bboxes:
+            return None
+
+        # Single bbox - return as is
+        if len(valid_bboxes) == 1:
+            return valid_bboxes[0]
+
+        # Multiple bboxes - compute union
+        x0 = min(bbox[0] for bbox in valid_bboxes)
+        y0 = min(bbox[1] for bbox in valid_bboxes)
+        x1 = max(bbox[2] for bbox in valid_bboxes)
+        y1 = max(bbox[3] for bbox in valid_bboxes)
+
+        return (x0, y0, x1, y1)
 
     def _push_heading(
         self,

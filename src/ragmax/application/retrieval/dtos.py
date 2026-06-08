@@ -29,6 +29,7 @@ class RetrievedNode:
     score: float
     collection_name: str
     citation: RetrievalCitation
+    context_node: IndexNode | None = None
     payload: dict[str, Any] = field(default_factory=dict)
 
 

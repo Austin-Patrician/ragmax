@@ -4,9 +4,20 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from ragmax.domain.indexing.blocks import BlockType
 from ragmax.domain.indexing.entities import IndexNode
-from ragmax.domain.indexing.records import IndexJobRecord, IndexJobStatus, SourceRecord
-from ragmax.infrastructure.db.models import IndexJobModel, IndexNodeModel, SourceModel
+from ragmax.domain.indexing.records import (
+    IndexBlockRecord,
+    IndexJobRecord,
+    IndexJobStatus,
+    SourceRecord,
+)
+from ragmax.infrastructure.db.models import (
+    IndexBlockModel,
+    IndexJobModel,
+    IndexNodeModel,
+    SourceModel,
+)
 
 
 def _utc_now() -> datetime:
@@ -26,7 +37,7 @@ class SqlAlchemySourceRepository:
             media_type=source.media_type,
             source_hash=source.source_hash,
             text=source.text,
-            blocks=list(source.blocks),
+            input_blocks=list(source.input_blocks),
             file_path=source.file_path,
             file_size=source.file_size,
             source_metadata=source.metadata,
@@ -120,6 +131,14 @@ class SqlAlchemyIndexNodeRepository:
         )
         return tuple(_node_from_model(model) for model in result.scalars())
 
+    async def list_by_job(self, job_id: str) -> tuple[IndexNode, ...]:
+        result = await self._session.execute(
+            select(IndexNodeModel)
+            .where(IndexNodeModel.job_id == job_id)
+            .order_by(IndexNodeModel.created_at, IndexNodeModel.node_id)
+        )
+        return tuple(_node_from_model(model) for model in result.scalars())
+
     async def get_many(self, node_ids: Sequence[str]) -> tuple[IndexNode, ...]:
         if not node_ids:
             return ()
@@ -135,6 +154,37 @@ class SqlAlchemyIndexNodeRepository:
         return int(result.rowcount or 0)
 
 
+class SqlAlchemyIndexBlockRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def replace_for_source(
+        self,
+        *,
+        source_id: str,
+        job_id: str,
+        blocks: Sequence[IndexBlockRecord],
+    ) -> tuple[IndexBlockRecord, ...]:
+        await self.delete_by_source(source_id)
+        models = [_block_model_from_record(block, job_id) for block in blocks]
+        self._session.add_all(models)
+        return tuple(blocks)
+
+    async def list_by_job(self, job_id: str) -> tuple[IndexBlockRecord, ...]:
+        result = await self._session.execute(
+            select(IndexBlockModel)
+            .where(IndexBlockModel.job_id == job_id)
+            .order_by(IndexBlockModel.order_index, IndexBlockModel.block_id)
+        )
+        return tuple(_block_record_from_model(model) for model in result.scalars())
+
+    async def delete_by_source(self, source_id: str) -> int:
+        result = await self._session.execute(
+            delete(IndexBlockModel).where(IndexBlockModel.source_id == source_id)
+        )
+        return int(result.rowcount or 0)
+
+
 class SqlAlchemyIndexingUnitOfWork:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -144,6 +194,7 @@ class SqlAlchemyIndexingUnitOfWork:
         self._session = self._session_factory()
         self.sources = SqlAlchemySourceRepository(self._session)
         self.jobs = SqlAlchemyIndexJobRepository(self._session)
+        self.blocks = SqlAlchemyIndexBlockRepository(self._session)
         self.nodes = SqlAlchemyIndexNodeRepository(self._session)
         return self
 
@@ -173,7 +224,7 @@ def _source_record_from_model(model: SourceModel) -> SourceRecord:
         media_type=model.media_type,
         source_hash=model.source_hash,
         text=model.text,
-        blocks=tuple(model.blocks or ()),
+        input_blocks=tuple(model.input_blocks or ()),
         file_path=model.file_path,
         file_size=model.file_size,
         metadata=dict(model.source_metadata or {}),
@@ -225,6 +276,47 @@ def _node_model_from_node(node: IndexNode, job_id: str) -> IndexNodeModel:
         embedding_model=node.embedding_model,
         node_metadata=node.metadata,
         created_at=_utc_now(),
+    )
+
+
+def _block_model_from_record(block: IndexBlockRecord, job_id: str) -> IndexBlockModel:
+    return IndexBlockModel(
+        block_id=block.block_id,
+        job_id=job_id,
+        source_id=block.source_id,
+        notebook_id=block.notebook_id,
+        order_index=block.order_index,
+        block_type=block.block_type.value,
+        text=block.text,
+        page_no=block.page_no,
+        bbox=list(block.bbox) if block.bbox else None,
+        section_hint=list(block.section_hint),
+        parser_name=block.parser_name,
+        parser_version=block.parser_version,
+        content_hash=block.content_hash,
+        block_metadata=block.metadata,
+        created_at=_utc_now(),
+    )
+
+
+def _block_record_from_model(model: IndexBlockModel) -> IndexBlockRecord:
+    bbox = tuple(model.bbox) if model.bbox else None
+    return IndexBlockRecord(
+        block_id=model.block_id,
+        job_id=model.job_id,
+        source_id=model.source_id,
+        notebook_id=model.notebook_id,
+        order_index=model.order_index,
+        block_type=BlockType(model.block_type),
+        text=model.text,
+        page_no=model.page_no,
+        bbox=bbox,
+        section_hint=tuple(model.section_hint or ()),
+        parser_name=model.parser_name,
+        parser_version=model.parser_version,
+        content_hash=model.content_hash,
+        metadata=dict(model.block_metadata or {}),
+        created_at=model.created_at,
     )
 
 

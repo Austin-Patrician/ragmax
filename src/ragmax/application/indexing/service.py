@@ -3,11 +3,13 @@ import json
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
+from time import perf_counter
 from uuid import uuid4
 
 from ragmax.application.indexing.dtos import (
     CreateSourceCommand,
     DeleteSourceIndexResult,
+    IndexingArtifactsResult,
     PreviewIndexingCommand,
     PreviewIndexingResult,
     RunIndexJobCommand,
@@ -24,9 +26,16 @@ from ragmax.application.indexing.ports import (
 from ragmax.application.indexing.registry import IndexingProfileRegistry
 from ragmax.core.exceptions import ConfigurationError, NotFoundError
 from ragmax.domain.indexing.analysis import IndexingSummary
+from ragmax.domain.indexing.blocks import ContentBlock
 from ragmax.domain.indexing.entities import IndexNode
 from ragmax.domain.indexing.ports import Chunker, NodeEnricher, SourceAnalyzer
-from ragmax.domain.indexing.records import IndexJobRecord, IndexJobStatus, SourceRecord
+from ragmax.domain.indexing.quality import calculate_chunk_quality, QualityThresholds
+from ragmax.domain.indexing.records import (
+    IndexBlockRecord,
+    IndexJobRecord,
+    IndexJobStatus,
+    SourceRecord,
+)
 
 IndexingUnitOfWorkFactory = Callable[[], IndexingUnitOfWork]
 
@@ -73,11 +82,11 @@ class IndexingService:
             media_type=command.media_type,
             source_hash=self._build_source_hash(
                 command.text,
-                command.blocks,
+                command.input_blocks,
                 provided_hash=command.source_hash,
             ),
             text=command.text,
-            blocks=tuple(asdict(block) for block in command.blocks),
+            input_blocks=tuple(asdict(block) for block in command.input_blocks),
             file_path=command.file_path,
             file_size=command.file_size,
             metadata=command.metadata,
@@ -122,10 +131,12 @@ class IndexingService:
                 )
             )
             vector_status = "running"
+            vector_started_at = perf_counter()
             indexed_nodes, vector_status, vector_count = await self._index_vectors_if_enabled(
                 nodes=preview_result.nodes,
                 profile=preview_result.effective_profile,
             )
+            vector_ms = _elapsed_ms(vector_started_at)
         except Exception as exc:
             if vector_status == "running":
                 vector_status = "failed"
@@ -143,7 +154,15 @@ class IndexingService:
                 await uow.commit()
             raise
 
-        summary_dict = asdict(preview_result.summary)
+        succeeded_summary = replace(
+            preview_result.summary,
+            vectorized_count=vector_count,
+            performance={
+                **preview_result.summary.performance,
+                "vector_ms": vector_ms,
+            },
+        )
+        summary_dict = asdict(succeeded_summary)
         summary_dict["vector_index"] = {
             "status": vector_status,
             "embedding_model": self._embedding_provider.model_name
@@ -166,6 +185,14 @@ class IndexingService:
         )
 
         async with self._unit_of_work_factory() as uow:
+            await uow.blocks.replace_for_source(
+                source_id=source.source_id,
+                job_id=succeeded_job.job_id,
+                blocks=_index_block_records_from_document(
+                    job_id=succeeded_job.job_id,
+                    document=preview_result.document,
+                ),
+            )
             await uow.nodes.replace_for_source(
                 source_id=source.source_id,
                 job_id=succeeded_job.job_id,
@@ -180,7 +207,7 @@ class IndexingService:
             effective_profile=preview_result.effective_profile,
             effective_parser=preview_result.effective_parser,
             nodes=indexed_nodes,
-            summary=preview_result.summary,
+            summary=succeeded_summary,
         )
 
     async def get_index_job(self, job_id: str) -> IndexJobRecord:
@@ -191,6 +218,17 @@ class IndexingService:
             if job is None:
                 raise NotFoundError(f"Index job not found: {job_id}")
             return job
+
+    async def get_indexing_artifacts(self, job_id: str) -> IndexingArtifactsResult:
+        self._ensure_persistence_configured()
+
+        async with self._unit_of_work_factory() as uow:
+            job = await uow.jobs.get(job_id)
+            if job is None:
+                raise NotFoundError(f"Index job not found: {job_id}")
+            blocks = await uow.blocks.list_by_job(job_id)
+            nodes = await uow.nodes.list_by_job(job_id)
+            return IndexingArtifactsResult(job=job, blocks=blocks, nodes=nodes)
 
     async def get_source_for_indexing(self, source_id: str) -> SourceInput:
         source = await self._get_source_or_raise(source_id)
@@ -209,6 +247,7 @@ class IndexingService:
         vector_deleted_count = await self._delete_vectors_if_enabled(source_id)
 
         async with self._unit_of_work_factory() as uow:
+            await uow.blocks.delete_by_source(source_id)
             deleted_count = await uow.nodes.delete_by_source(source_id)
             await uow.commit()
             return DeleteSourceIndexResult(
@@ -226,9 +265,7 @@ class IndexingService:
         if self._embedding_provider is None or self._vector_index_writer is None:
             return nodes, "skipped", 0
 
-        vector_nodes = tuple(
-            node for node in nodes if node.modality == "text" and node.text.strip()
-        )
+        vector_nodes = tuple(node for node in nodes if _is_vector_indexable_node(node))
         if not vector_nodes:
             return nodes, "skipped", 0
 
@@ -285,24 +322,23 @@ class IndexingService:
         return deleted_count
 
     async def _build_preview(self, command: PreviewIndexingCommand) -> PreviewIndexingResult:
-        requested_profile = (
+        if command.profile_name is not None:
             self._profile_registry.get(command.profile_name)
-            if command.profile_name is not None
-            else None
-        )
         resolved_parser = self._source_parser_registry.resolve(
             source=command.source,
             requested_parser=command.parser_name,
-            requested_profile=requested_profile,
         )
+        started_at = perf_counter()
+        parse_started_at = perf_counter()
         document = await resolved_parser.parser.parse(command.source, command.parser_options)
+        parse_ms = _elapsed_ms(parse_started_at)
+
+        analyze_started_at = perf_counter()
         analysis = self._source_analyzer.analyze(document, self._profile_registry.list())
+        analyze_ms = _elapsed_ms(analyze_started_at)
 
         profile_name = command.profile_name or analysis.recommended_profile.value
-        effective_profile = replace(
-            self._profile_registry.resolve(profile_name, command.overrides),
-            parser=resolved_parser.name,
-        )
+        effective_profile = self._profile_registry.resolve(profile_name, command.overrides)
 
         chunker = self._chunkers.get(effective_profile.chunker)
         if chunker is None:
@@ -311,12 +347,37 @@ class IndexingService:
                 f"'{effective_profile.name.value}'."
             )
 
+        chunk_started_at = perf_counter()
         nodes = chunker.chunk(document, effective_profile)
+        chunk_ms = _elapsed_ms(chunk_started_at)
+
+        enrich_started_at = perf_counter()
         enriched_nodes = tuple(self._node_enricher.enrich(nodes, document, effective_profile))
+        enrich_ms = _elapsed_ms(enrich_started_at)
+
+        # Calculate chunk quality metrics
+        quality_started_at = perf_counter()
+        quality_metrics = calculate_chunk_quality(
+            nodes=enriched_nodes,
+            blocks=document.blocks,
+            profile=effective_profile,
+            thresholds=QualityThresholds(),
+        )
+        quality_ms = _elapsed_ms(quality_started_at)
+
         summary = IndexingSummary.from_nodes(
-            block_count=len(document.blocks),
+            blocks=document.blocks,
             page_count=document.page_count,
             nodes=enriched_nodes,
+            performance={
+                "parse_ms": parse_ms,
+                "analyze_ms": analyze_ms,
+                "chunk_ms": chunk_ms,
+                "enrich_ms": enrich_ms,
+                "quality_ms": quality_ms,
+                "preview_total_ms": _elapsed_ms(started_at),
+            },
+            quality_metrics=quality_metrics,
         )
 
         return PreviewIndexingResult(
@@ -344,7 +405,7 @@ class IndexingService:
             text=source.text,
             file_path=source.file_path,
             file_size=source.file_size,
-            blocks=tuple(
+            input_blocks=tuple(
                 SourceInputBlock(
                     block_id=block.get("block_id"),
                     block_type=block.get("block_type", "text"),
@@ -354,7 +415,7 @@ class IndexingService:
                     section_hint=tuple(block.get("section_hint", ())),
                     metadata=dict(block.get("metadata", {})),
                 )
-                for block in source.blocks
+                for block in source.input_blocks
             ),
             metadata=source.metadata,
         )
@@ -374,7 +435,70 @@ class IndexingService:
             return provided_hash
         payload = {
             "text": text,
-            "blocks": [asdict(block) for block in blocks],
+            "input_blocks": [asdict(block) for block in blocks],
         }
         encoded_payload = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
         return hashlib.sha256(encoded_payload).hexdigest()
+
+
+def _is_vector_indexable_node(node: IndexNode) -> bool:
+    if node.modality != "text" or not node.text.strip():
+        return False
+    return _node_role(node) != "parent"
+
+
+def _node_role(node: IndexNode) -> str:
+    if node.parent_node_id:
+        return "child"
+    if node.content_type == "section":
+        return "parent"
+    return "leaf"
+
+
+def _index_block_records_from_document(
+    *,
+    job_id: str,
+    document,
+) -> tuple[IndexBlockRecord, ...]:
+    return tuple(
+        _index_block_record_from_content_block(
+            job_id=job_id,
+            notebook_id=document.notebook_id,
+            parser_name=document.parser_name,
+            parser_version=document.parser_version,
+            order_index=index,
+            block=block,
+        )
+        for index, block in enumerate(document.blocks, start=1)
+    )
+
+
+def _index_block_record_from_content_block(
+    *,
+    job_id: str,
+    notebook_id: str,
+    parser_name: str,
+    parser_version: str,
+    order_index: int,
+    block: ContentBlock,
+) -> IndexBlockRecord:
+    return IndexBlockRecord(
+        block_id=block.block_id,
+        job_id=job_id,
+        source_id=block.source_id,
+        notebook_id=notebook_id,
+        order_index=order_index,
+        block_type=block.block_type,
+        text=block.text,
+        page_no=block.page_no,
+        bbox=block.bbox,
+        section_hint=block.section_hint,
+        parser_name=parser_name,
+        parser_version=parser_version,
+        content_hash=hashlib.sha256(block.normalized_text.encode("utf-8")).hexdigest(),
+        metadata=dict(block.metadata),
+    )
+
+
+def _elapsed_ms(started_at: float) -> float:
+    return round((perf_counter() - started_at) * 1000, 3)
