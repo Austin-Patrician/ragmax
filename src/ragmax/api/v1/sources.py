@@ -9,6 +9,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field, model_validator
 
+from ragmax.api.auth_dependencies import ROUTE_INDEXING, require_route_permission
 from ragmax.api.dependencies import get_indexing_service, get_source_storage
 from ragmax.api.v1.indexing import (
     IndexingPreviewResponse,
@@ -35,7 +36,11 @@ from ragmax.domain.indexing.entities import IndexNode
 from ragmax.domain.indexing.records import IndexJobRecord, SourceRecord
 from ragmax.infrastructure.storage.local_source_storage import LocalSourceStorage
 
-router = APIRouter(prefix="/sources", tags=["sources"])
+router = APIRouter(
+    prefix="/sources",
+    tags=["sources"],
+    dependencies=[Depends(require_route_permission(ROUTE_INDEXING))],
+)
 
 
 class ContentBlockPayload(BaseModel):

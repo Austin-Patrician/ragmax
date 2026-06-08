@@ -6,6 +6,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
+from ragmax.api.auth_dependencies import ROUTE_INDEXING, require_route_permission
 from ragmax.api.dependencies import get_indexing_service
 from ragmax.application.indexing.dtos import (
     PreviewIndexingCommand,
@@ -21,7 +22,11 @@ from ragmax.core.exceptions import (
     NotFoundError,
 )
 
-router = APIRouter(prefix="/indexing", tags=["indexing"])
+router = APIRouter(
+    prefix="/indexing",
+    tags=["indexing"],
+    dependencies=[Depends(require_route_permission(ROUTE_INDEXING))],
+)
 
 
 class IndexingProfileResponse(BaseModel):

@@ -1,10 +1,26 @@
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ragmax.infrastructure.db.base import Base
+
+JSONB_SQLITE_JSON = JSONB().with_variant(JSON(), "sqlite")
 
 
 def utc_now() -> datetime:
@@ -26,6 +42,130 @@ class SourceModel(Base):
     source_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class UserModel(Base):
+    __tablename__ = "users"
+
+    user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    username: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(512))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+# Evaluation platform models
+
+
+class EvalDatasetModel(Base):
+    __tablename__ = "eval_datasets"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    version: Mapped[str] = mapped_column(String(50), nullable=False, server_default="1.0.0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    __table_args__ = (UniqueConstraint("name", "version", name="uq_eval_datasets_name_version"),)
+
+
+class EvalTestCaseModel(Base):
+    __tablename__ = "eval_test_cases"
+
+    id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    dataset_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("eval_datasets.id"), nullable=False
+    )
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    expected_answer: Mapped[str | None] = mapped_column(Text)
+    ground_truth_docs: Mapped[list[str]] = mapped_column(
+        JSONB_SQLITE_JSON, nullable=False, server_default="[]"
+    )
+    test_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB_SQLITE_JSON, nullable=False, server_default="{}"
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    __table_args__ = (Index("idx_eval_test_cases_dataset", "dataset_id"),)
+
+
+class EvalExperimentModel(Base):
+    __tablename__ = "eval_experiments"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    dataset_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("eval_datasets.id"), nullable=False
+    )
+    config: Mapped[dict[str, Any]] = mapped_column(JSONB_SQLITE_JSON, nullable=False)
+    metrics_summary: Mapped[dict[str, Any] | None] = mapped_column(JSONB_SQLITE_JSON)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="pending")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_seconds: Mapped[float | None] = mapped_column(Float)
+
+    __table_args__ = (
+        Index("idx_eval_experiments_dataset", "dataset_id"),
+        Index("idx_eval_experiments_started", "started_at"),
+    )
+
+
+class EvalResultModel(Base):
+    __tablename__ = "eval_results"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    experiment_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("eval_experiments.id"), nullable=False
+    )
+    test_case_id: Mapped[str] = mapped_column(
+        String(255), ForeignKey("eval_test_cases.id"), nullable=False
+    )
+    retrieval_result: Mapped[dict[str, Any] | None] = mapped_column(JSONB_SQLITE_JSON)
+    generation_result: Mapped[dict[str, Any] | None] = mapped_column(JSONB_SQLITE_JSON)
+    metrics: Mapped[dict[str, float]] = mapped_column(
+        JSONB_SQLITE_JSON, nullable=False, server_default="{}"
+    )
+    passed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    __table_args__ = (Index("idx_eval_results_experiment", "experiment_id"),)
+
+
+class UserRoutePermissionModel(Base):
+    __tablename__ = "user_route_permissions"
+    __table_args__ = (
+        UniqueConstraint("user_id", "route_path", name="uq_user_route_permissions_user_route"),
+    )
+
+    permission_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("users.user_id", ondelete="CASCADE"),
+        index=True,
+    )
+    route_path: Mapped[str] = mapped_column(String(256), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class AuthRefreshSessionModel(Base):
+    __tablename__ = "auth_refresh_sessions"
+    __table_args__ = (
+        Index("ix_auth_refresh_sessions_user_active", "user_id", "revoked_at"),
+    )
+
+    session_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("users.user_id", ondelete="CASCADE"),
+        index=True,
+    )
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class IndexJobModel(Base):

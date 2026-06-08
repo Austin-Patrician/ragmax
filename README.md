@@ -36,6 +36,7 @@ Vector indexing is off by default. Enable it with:
 
 ```env
 VECTOR_INDEX_ENABLED=true
+VECTOR_SPARSE_INDEX_ENABLED=true
 EMBEDDING_PROVIDER=hash
 QDRANT_URL=http://localhost:6333
 QDRANT_API_KEY=
@@ -61,10 +62,30 @@ Use the API root such as `https://gateway.example.com/v1`; do not include
 If the gateway returns empty embedding data for large indexing jobs, lower
 `OPENAI_EMBEDDING_BATCH_SIZE`; start with `8` or `16` and tune upward.
 
+When `VECTOR_SPARSE_INDEX_ENABLED=true`, new Qdrant collections are created with
+both the dense vector and the `text-sparse` sparse vector used by BM25 retrieval.
+Existing non-empty dense-only collections cannot be upgraded in place by Qdrant;
+delete or rebuild the collection, then re-run indexing before enabling BM25.
+
+Hybrid retrieval and BGE fine reranking are controlled with:
+
+```env
+RETRIEVAL_ENABLED=true
+RETRIEVAL_BM25_ENABLED=true
+RETRIEVAL_BM25_TOP_K=100
+RETRIEVAL_RERANKING_STAGES=coarse,fine
+RETRIEVAL_RERANKER_FINE=bge
+RETRIEVAL_RERANKER_FINE_MODEL=BAAI/bge-reranker-v2-m3
+RETRIEVAL_RERANKER_FINE_DEVICE=cpu
+```
+
+The BGE reranker is loaded lazily on the first fine rerank request. If model
+loading or inference fails, `/retrieval/answer` returns a 500 error instead of
+falling back silently.
+
 ## Checks
 
 ```bash
 uv run pytest
 uv run ruff check .
 ```
-

@@ -5,13 +5,24 @@ import anyio
 from qdrant_client import QdrantClient, models
 
 from ragmax.application.indexing.ports import VectorIndexRecord
+from ragmax.core.exceptions import ConfigurationError
 from ragmax.domain.indexing.entities import IndexNode
+from ragmax.infrastructure.qdrant.sparse_encoder import SPARSE_VECTOR_NAME, SparseTextEncoder
 
 
 class QdrantVectorIndexWriter:
-    def __init__(self, *, client: QdrantClient, vector_size: int) -> None:
+    def __init__(
+        self,
+        *,
+        client: QdrantClient,
+        vector_size: int,
+        sparse_index_enabled: bool = True,
+        sparse_encoder: SparseTextEncoder | None = None,
+    ) -> None:
         self._client = client
         self._vector_size = vector_size
+        self._sparse_index_enabled = sparse_index_enabled
+        self._sparse_encoder = sparse_encoder or SparseTextEncoder()
 
     async def upsert_nodes(
         self,
@@ -59,18 +70,30 @@ class QdrantVectorIndexWriter:
             )
             for node in nodes
         )
-        points = [
-            models.PointStruct(
-                id=record.point_id,
-                vector=list(vector),
-                payload=_payload_from_node(
-                    node,
-                    collection_name=collection_name,
-                    embedding_model=embedding_model,
-                ),
+        points: list[models.PointStruct] = []
+        for node, vector, record in zip(nodes, embeddings, vector_records, strict=True):
+            sparse_vector = None
+            sparse_terms: tuple[str, ...] = ()
+            if self._sparse_index_enabled:
+                sparse_vector, sparse_terms = self._sparse_encoder.encode(node.text)
+
+            points.append(
+                models.PointStruct(
+                    id=record.point_id,
+                    vector=_point_vector(
+                        dense_vector=vector,
+                        sparse_vector=sparse_vector,
+                    ),
+                    payload=_payload_from_node(
+                        node,
+                        collection_name=collection_name,
+                        embedding_model=embedding_model,
+                        sparse_terms_count=len(sparse_terms)
+                        if self._sparse_index_enabled
+                        else None,
+                    ),
+                )
             )
-            for node, vector, record in zip(nodes, embeddings, vector_records, strict=True)
-        ]
         self._client.upsert(collection_name=collection_name, points=points, wait=True)
         return vector_records
 
@@ -93,13 +116,45 @@ class QdrantVectorIndexWriter:
 
     def _ensure_collection(self, collection_name: str) -> None:
         if self._client.collection_exists(collection_name):
+            if self._sparse_index_enabled:
+                self._ensure_sparse_vector(collection_name)
             return
+        self._create_collection(collection_name)
+
+    def _create_collection(self, collection_name: str) -> None:
+        sparse_vectors_config = None
+        if self._sparse_index_enabled:
+            sparse_vectors_config = {
+                SPARSE_VECTOR_NAME: models.SparseVectorParams(
+                    modifier=models.Modifier.IDF,
+                    index=models.SparseIndexParams(on_disk=False),
+                )
+            }
         self._client.create_collection(
             collection_name=collection_name,
             vectors_config=models.VectorParams(
                 size=self._vector_size,
                 distance=models.Distance.COSINE,
             ),
+            sparse_vectors_config=sparse_vectors_config,
+        )
+
+    def _ensure_sparse_vector(self, collection_name: str) -> None:
+        info = self._client.get_collection(collection_name)
+        sparse_vectors = info.config.params.sparse_vectors or {}
+        if SPARSE_VECTOR_NAME in sparse_vectors:
+            return
+
+        point_count = int(info.points_count or 0)
+        if point_count == 0:
+            self._client.delete_collection(collection_name)
+            self._create_collection(collection_name)
+            return
+
+        raise ConfigurationError(
+            f"Qdrant collection '{collection_name}' does not define sparse vector "
+            f"'{SPARSE_VECTOR_NAME}' and contains {point_count} points. Delete or rebuild "
+            "the collection, then re-run indexing to enable BM25 sparse retrieval."
         )
 
 
@@ -123,7 +178,18 @@ def _payload_from_node(
     *,
     collection_name: str,
     embedding_model: str,
+    sparse_terms_count: int | None = None,
 ) -> dict[str, object]:
+    metadata = dict(node.metadata)
+    if sparse_terms_count is not None:
+        metadata.update(
+            {
+                "sparse_indexed": True,
+                "sparse_terms_count": sparse_terms_count,
+                "sparse_vector_name": SPARSE_VECTOR_NAME,
+            }
+        )
+
     return {
         "node_id": node.node_id,
         "source_id": node.source_id,
@@ -141,7 +207,7 @@ def _payload_from_node(
         "chunker_version": node.chunker_version,
         "embedding_model": embedding_model,
         "vector_collection": collection_name,
-        "metadata": node.metadata,
+        "metadata": metadata,
         "text": node.text,
     }
 
@@ -152,3 +218,13 @@ def _node_role(node: IndexNode) -> str:
     if node.content_type == "section":
         return "parent"
     return "leaf"
+
+
+def _point_vector(
+    *,
+    dense_vector: Sequence[float],
+    sparse_vector: models.SparseVector | None,
+) -> list[float] | dict[str, list[float] | models.SparseVector]:
+    if sparse_vector is None:
+        return list(dense_vector)
+    return {"": list(dense_vector), SPARSE_VECTOR_NAME: sparse_vector}

@@ -5,18 +5,23 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from ragmax.api.auth_dependencies import ROUTE_RETRIEVAL, require_route_permission
 from ragmax.api.dependencies import get_retrieval_service
 from ragmax.application.retrieval.dtos import AnswerCommand, RetrievalCommand
 from ragmax.application.retrieval.service import RetrievalService
 from ragmax.core.exceptions import ConfigurationError, ExternalServiceError, InvalidRequestError
 
-router = APIRouter(prefix="/retrieval", tags=["retrieval"])
+router = APIRouter(
+    prefix="/retrieval",
+    tags=["retrieval"],
+    dependencies=[Depends(require_route_permission(ROUTE_RETRIEVAL))],
+)
 
 
 class RetrievalSearchRequest(BaseModel):
     query: str = Field(min_length=1)
     notebook_id: str = Field(min_length=1)
-    top_k: int = Field(default=8, ge=1, le=50)
+    top_k: int = Field(default=8, ge=1, le=100)
     source_ids: list[str] = Field(default_factory=list)
     content_types: list[str] = Field(default_factory=list)
     score_threshold: float | None = None
@@ -25,8 +30,8 @@ class RetrievalSearchRequest(BaseModel):
 class RetrievalAnswerRequest(BaseModel):
     query: str = Field(min_length=1)
     notebook_id: str = Field(min_length=1)
-    retrieval_top_k: int | None = Field(default=None, ge=1, le=50)
-    rerank_top_k: int | None = Field(default=None, ge=1, le=50)
+    retrieval_top_k: int | None = Field(default=None, ge=1, le=100)
+    rerank_top_k: int | None = Field(default=None, ge=1, le=100)
     source_ids: list[str] = Field(default_factory=list)
     content_types: list[str] = Field(default_factory=list)
     score_threshold: float | None = None

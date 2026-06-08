@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import Iterator, Sequence
 
 import pytest
+from conftest import authenticate_test_client, db_session_override, seed_auth_user
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -15,6 +16,7 @@ from ragmax.api.dependencies import (
 from ragmax.application.retrieval.ports import VectorSearchHit
 from ragmax.infrastructure.db.base import Base, import_models
 from ragmax.infrastructure.db.repositories.indexing import SqlAlchemyIndexingUnitOfWork
+from ragmax.infrastructure.db.session import get_db_session
 from ragmax.infrastructure.indexing.embeddings.hash_embedding_provider import HashEmbeddingProvider
 from ragmax.infrastructure.storage.local_source_storage import LocalSourceStorage
 from ragmax.main import create_app
@@ -67,8 +69,10 @@ def retrieval_client(tmp_path) -> Iterator[tuple[TestClient, FakeVectorSearcher]
         await engine.dispose()
 
     asyncio.run(setup_database())
+    seed_auth_user(session_factory)
 
     app = create_app()
+    app.dependency_overrides[get_db_session] = db_session_override(session_factory)
     app.dependency_overrides[get_indexing_service] = lambda: create_indexing_service(
         unit_of_work_factory=lambda: SqlAlchemyIndexingUnitOfWork(session_factory)
     )
@@ -83,6 +87,7 @@ def retrieval_client(tmp_path) -> Iterator[tuple[TestClient, FakeVectorSearcher]
     )
 
     with TestClient(app) as client:
+        authenticate_test_client(client)
         yield client, vector_searcher
 
     app.dependency_overrides.clear()

@@ -10,6 +10,7 @@ from ragmax.application.indexing.ports import (
 from ragmax.application.indexing.profiles import list_indexing_profiles
 from ragmax.application.indexing.registry import IndexingProfileRegistry
 from ragmax.application.indexing.service import IndexingService
+from ragmax.application.retrieval.fusion_ports import BM25Searcher, SearchFuser
 from ragmax.application.retrieval.ports import AnswerGenerator, Reranker, VectorSearcher
 from ragmax.application.retrieval.service import RetrievalService
 from ragmax.core.config import Settings, get_settings
@@ -70,6 +71,7 @@ def create_indexing_service(
         vector_index_writer = vector_index_writer or QdrantVectorIndexWriter(
             client=create_qdrant_client(settings),
             vector_size=embedding_provider.dimension,
+            sparse_index_enabled=settings.vector_sparse_index_enabled,
         )
     elif (embedding_provider is None) != (vector_index_writer is None):
         raise ConfigurationError(
@@ -164,26 +166,85 @@ def create_retrieval_service(
     unit_of_work_factory: Callable[[], IndexingUnitOfWork] | None = None,
     embedding_provider: EmbeddingProvider | None = None,
     vector_searcher: VectorSearcher | None = None,
+    bm25_searcher: BM25Searcher | None = None,
+    search_fuser: SearchFuser | None = None,
     reranker: Reranker | None = None,
+    fine_reranker: Reranker | None = None,
     answer_generator: AnswerGenerator | None = None,
 ) -> RetrievalService:
     settings = get_settings()
+    reranking_stages = _parse_reranking_stages(settings.retrieval_reranking_stages)
+
+    # Query processing
+    query_normalizer = None
+    query_transformer = None
+    if settings.retrieval_enabled:
+        from ragmax.infrastructure.retrieval.query.normalizer import BasicQueryNormalizer
+
+        query_normalizer = BasicQueryNormalizer()
+
+        # Query transformer (if not "original")
+        if settings.retrieval_query_transformation != "original":
+            llm_client = None
+            try:
+                # Use separate LLM client for query transformation
+                llm_client = create_query_llm_client(settings)
+            except Exception:
+                pass  # LLM not available, fallback to original
+
+            if llm_client:
+                from ragmax.infrastructure.retrieval.query.transformer import (
+                    create_query_transformer,
+                )
+
+                query_transformer = create_query_transformer(
+                    strategy=settings.retrieval_query_transformation,
+                    llm_client=llm_client,
+                    num_variants=settings.retrieval_query_multi_query_count,
+                )
+
+    # Core retrieval components
     if settings.retrieval_enabled:
         embedding_provider = embedding_provider or create_embedding_provider(settings)
         vector_searcher = vector_searcher or QdrantVectorSearcher(
             client=create_qdrant_client(settings)
         )
+
+        # BM25 + Fusion (if enabled)
+        if settings.retrieval_bm25_enabled:
+            from ragmax.infrastructure.qdrant.sparse_searcher import QdrantSparseBM25Searcher
+            from ragmax.infrastructure.retrieval.fusion.rrf_fuser import RRFFuser
+
+            bm25_searcher = bm25_searcher or QdrantSparseBM25Searcher(
+                client=create_qdrant_client(settings)
+            )
+
+            if settings.retrieval_fusion_strategy == "rrf":
+                search_fuser = search_fuser or RRFFuser(k=settings.retrieval_fusion_rrf_k)
+            else:
+                raise ConfigurationError(
+                    f"Unsupported retrieval fusion strategy: {settings.retrieval_fusion_strategy}"
+                )
+
     elif (embedding_provider is None) != (vector_searcher is None):
         raise ConfigurationError(
             "embedding_provider and vector_searcher must be configured together."
         )
+
     reranker = reranker or create_reranker(settings)
+    if "fine" in reranking_stages:
+        fine_reranker = fine_reranker or create_fine_reranker(settings)
+        if fine_reranker is None:
+            raise ConfigurationError(
+                "Fine reranking is enabled but RETRIEVAL_RERANKER_FINE is none."
+            )
     answer_generator = answer_generator or create_answer_generator(settings)
 
     return RetrievalService(
         embedding_provider=embedding_provider,
         vector_searcher=vector_searcher,
         reranker=reranker,
+        fine_reranker=fine_reranker,
         answer_generator=answer_generator,
         profile_registry=IndexingProfileRegistry(list_indexing_profiles()),
         unit_of_work_factory=unit_of_work_factory
@@ -191,7 +252,15 @@ def create_retrieval_service(
         default_top_k=settings.retrieval_default_top_k,
         max_top_k=settings.retrieval_max_top_k,
         default_rerank_top_k=settings.retrieval_rerank_default_top_k,
+        bm25_top_k=settings.retrieval_bm25_top_k,
+        reranking_stages=reranking_stages,
+        coarse_top_k=settings.retrieval_reranker_coarse_top_k,
+        fine_top_k=settings.retrieval_reranker_fine_top_k,
         max_context_items=settings.retrieval_answer_max_context_items,
+        query_normalizer=query_normalizer,
+        query_transformer=query_transformer,
+        bm25_searcher=bm25_searcher,
+        search_fuser=search_fuser,
     )
 
 
@@ -236,6 +305,43 @@ def create_reranker(settings: Settings | None = None) -> Reranker:
     raise ConfigurationError(f"Unsupported retrieval reranker: {reranker}")
 
 
+def create_fine_reranker(settings: Settings | None = None) -> Reranker | None:
+    """Create fine reranker if configured."""
+    resolved_settings = settings or get_settings()
+    fine_reranker = resolved_settings.retrieval_reranker_fine.lower()
+
+    if fine_reranker == "none":
+        return None
+
+    if fine_reranker == "bge":
+        from ragmax.infrastructure.retrieval.rerankers.bge_reranker import (
+            BGECrossEncoderReranker,
+        )
+
+        return BGECrossEncoderReranker(
+            model_name=resolved_settings.retrieval_reranker_fine_model,
+            device=resolved_settings.retrieval_reranker_fine_device,
+            batch_size=resolved_settings.retrieval_reranker_fine_batch_size,
+            max_length=resolved_settings.retrieval_reranker_fine_max_length,
+        )
+
+    raise ConfigurationError(f"Unsupported fine reranker: {fine_reranker}")
+
+
+def _parse_reranking_stages(value: str) -> tuple[str, ...]:
+    stages = tuple(stage.strip().lower() for stage in value.split(",") if stage.strip())
+    if not stages:
+        raise ConfigurationError("RETRIEVAL_RERANKING_STAGES must not be empty.")
+
+    supported = {"coarse", "fine"}
+    unsupported = sorted(set(stages) - supported)
+    if unsupported:
+        raise ConfigurationError(
+            f"Unsupported retrieval reranking stage(s): {', '.join(unsupported)}"
+        )
+    return stages
+
+
 def create_answer_generator(settings: Settings | None = None) -> AnswerGenerator:
     resolved_settings = settings or get_settings()
     generator = resolved_settings.retrieval_answer_generator.lower()
@@ -243,4 +349,68 @@ def create_answer_generator(settings: Settings | None = None) -> AnswerGenerator
         return ExtractiveAnswerGenerator(
             max_contexts=resolved_settings.retrieval_answer_max_context_items
         )
+    if generator == "llm":
+        llm_client = create_llm_client(resolved_settings)
+        from ragmax.infrastructure.retrieval.answer_generators.llm_answer_generator import (
+            LLMAnswerGenerator,
+        )
+
+        return LLMAnswerGenerator(
+            llm_client=llm_client,
+            max_context_items=resolved_settings.retrieval_answer_max_context_items,
+            temperature=resolved_settings.retrieval_llm_temperature,
+            max_tokens=resolved_settings.retrieval_llm_max_tokens,
+        )
     raise ConfigurationError(f"Unsupported retrieval answer generator: {generator}")
+
+
+def create_llm_client(settings: Settings) -> "LLMClient":  # noqa: F821
+    """Create LLM client for answer generation."""
+    from ragmax.infrastructure.llm.client import OpenAILLMClient
+
+    provider = settings.retrieval_llm_provider.lower()
+    if provider == "openai":
+        # Use retrieval_llm_api_key if provided, fallback to openai_api_key
+        api_key = None
+        if settings.retrieval_llm_api_key is not None:
+            api_key = settings.retrieval_llm_api_key.get_secret_value()
+        elif settings.openai_api_key is not None:
+            api_key = settings.openai_api_key.get_secret_value()
+
+        # Use retrieval_llm_base_url if provided, fallback to openai_base_url
+        base_url = settings.retrieval_llm_base_url or settings.openai_base_url
+
+        return OpenAILLMClient(
+            api_key=api_key,
+            model=settings.retrieval_llm_model,
+            base_url=base_url,
+        )
+    raise ConfigurationError(f"Unsupported LLM provider: {provider}")
+
+
+def create_query_llm_client(settings: Settings) -> "LLMClient":  # noqa: F821
+    """Create LLM client for query transformation (Multi-Query, HyDE, etc.).
+
+    This uses separate configuration from answer generation LLM,
+    allowing you to use a cheaper/faster model for query expansion.
+    """
+    from ragmax.infrastructure.llm.client import OpenAILLMClient
+
+    provider = settings.retrieval_query_llm_provider.lower()
+    if provider == "openai":
+        # Use retrieval_query_llm_api_key if provided, fallback to openai_api_key
+        api_key = None
+        if settings.retrieval_query_llm_api_key is not None:
+            api_key = settings.retrieval_query_llm_api_key.get_secret_value()
+        elif settings.openai_api_key is not None:
+            api_key = settings.openai_api_key.get_secret_value()
+
+        # Use retrieval_query_llm_base_url if provided, fallback to openai_base_url
+        base_url = settings.retrieval_query_llm_base_url or settings.openai_base_url
+
+        return OpenAILLMClient(
+            api_key=api_key,
+            model=settings.retrieval_query_llm_model,
+            base_url=base_url,
+        )
+    raise ConfigurationError(f"Unsupported query LLM provider: {provider}")

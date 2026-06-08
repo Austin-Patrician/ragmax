@@ -3,6 +3,7 @@ import { type ReactNode } from 'react'
 import { MantineProvider, createTheme } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import '@/i18n'
+import { AuthProvider } from '@/auth/AuthProvider'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,7 +34,7 @@ export function AppProviders({ children }: AppProvidersProps) {
     <QueryClientProvider client={queryClient}>
       <MantineProvider theme={theme} defaultColorScheme="light">
         <Notifications position="top-right" />
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </MantineProvider>
     </QueryClientProvider>
   )

@@ -1,4 +1,10 @@
-import { apiBaseUrl, apiClient, assertApiData, parseJsonResponse } from './client'
+import {
+  apiBaseUrl,
+  apiClient,
+  assertApiData,
+  authenticatedFetch,
+  parseJsonResponse,
+} from './client'
 import type {
   IndexingArtifactsResponse,
   IndexingPreviewResponse,
@@ -30,7 +36,7 @@ export async function uploadSource(input: UploadSourceInput): Promise<Source> {
     formData.append('metadata', input.metadata)
   }
 
-  const response = await fetch(`${apiBaseUrl}/api/v1/sources/upload`, {
+  const response = await authenticatedFetch(`${apiBaseUrl}/api/v1/sources/upload`, {
     method: 'POST',
     body: formData,
   })

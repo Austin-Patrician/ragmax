@@ -1,0 +1,206 @@
+/* Experiment Comparison Styles */
+
+.container {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.loading,
+.error {
+  text-align: center;
+  padding: 4rem 2rem;
+  font-size: 1.125rem;
+}
+
+.error {
+  color: #ef4444;
+}
+
+.backButton {
+  background: transparent;
+  border: none;
+  color: #6b7280;
+  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.backButton:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.header {
+  margin-bottom: 2rem;
+}
+
+.header h1 {
+  font-size: 1.875rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #111827;
+}
+
+.subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* Comparison Table */
+.comparisonTable {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 2rem;
+}
+
+.comparisonTable table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.comparisonTable thead {
+  background: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.comparisonTable th {
+  padding: 1rem;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.comparisonTable td {
+  padding: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.metricColumn {
+  width: 20%;
+  font-weight: 600;
+}
+
+.baselineColumn {
+  background: #eff6ff;
+  position: relative;
+}
+
+.baselineBadge {
+  display: inline-block;
+  background: #3b82f6;
+  color: white;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-left: 0.5rem;
+  letter-spacing: 0.05em;
+}
+
+.metricLabel {
+  font-weight: 500;
+  color: #374151;
+}
+
+.baselineValue {
+  background: #f0f9ff;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.candidateValue {
+  color: #374151;
+}
+
+.valueWithDelta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.value {
+  font-weight: 500;
+}
+
+.delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.iconImproved {
+  color: #10b981;
+}
+
+.iconRegressed {
+  color: #ef4444;
+}
+
+.iconNeutral {
+  color: #6b7280;
+}
+
+/* Recommendations */
+.recommendations {
+  margin-top: 3rem;
+}
+
+.recommendations h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #111827;
+}
+
+.recommendationCard {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 2rem;
+}
+
+.recommendationCard p {
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .comparisonTable {
+    overflow-x: auto;
+  }
+
+  .comparisonTable table {
+    min-width: 800px;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+
+  .header h1 {
+    font-size: 1.5rem;
+  }
+
+  .comparisonTable th,
+  .comparisonTable td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.8125rem;
+  }
+}

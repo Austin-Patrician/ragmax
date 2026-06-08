@@ -13,7 +13,15 @@ from ragmax.application.retrieval.dtos import (
     RetrievalResult,
     RetrievedNode,
 )
-from ragmax.application.retrieval.ports import AnswerGenerator, Reranker, VectorSearcher
+from ragmax.application.retrieval.fusion_ports import BM25Searcher, SearchFuser
+from ragmax.application.retrieval.ports import (
+    AnswerGenerator,
+    Reranker,
+    VectorSearcher,
+    VectorSearchHit,
+)
+from ragmax.application.retrieval.query_dtos import NormalizedQuery
+from ragmax.application.retrieval.query_ports import QueryNormalizer, QueryTransformer
 from ragmax.core.exceptions import ConfigurationError, InvalidRequestError
 from ragmax.domain.indexing.entities import IndexNode
 
@@ -27,28 +35,51 @@ class RetrievalService:
         embedding_provider: EmbeddingProvider | None,
         vector_searcher: VectorSearcher | None,
         reranker: Reranker | None,
+        fine_reranker: Reranker | None,
         answer_generator: AnswerGenerator | None,
         profile_registry: IndexingProfileRegistry,
         unit_of_work_factory: IndexingUnitOfWorkFactory,
         default_top_k: int,
         max_top_k: int,
         default_rerank_top_k: int,
+        bm25_top_k: int,
+        reranking_stages: tuple[str, ...],
+        coarse_top_k: int,
+        fine_top_k: int,
         max_context_items: int,
+        query_normalizer: QueryNormalizer | None = None,
+        query_transformer: QueryTransformer | None = None,
+        bm25_searcher: BM25Searcher | None = None,
+        search_fuser: SearchFuser | None = None,
     ) -> None:
         self._embedding_provider = embedding_provider
         self._vector_searcher = vector_searcher
         self._reranker = reranker
+        self._fine_reranker = fine_reranker
         self._answer_generator = answer_generator
         self._profile_registry = profile_registry
         self._unit_of_work_factory = unit_of_work_factory
         self._default_top_k = default_top_k
         self._max_top_k = max_top_k
         self._default_rerank_top_k = default_rerank_top_k
+        self._bm25_top_k = self._normalize_configured_top_k(bm25_top_k, "bm25_top_k")
+        self._reranking_stages = reranking_stages
+        self._coarse_top_k = self._normalize_configured_top_k(coarse_top_k, "coarse_top_k")
+        self._fine_top_k = self._normalize_configured_top_k(fine_top_k, "fine_top_k")
         self._max_context_items = max(1, max_context_items)
+        self._query_normalizer = query_normalizer
+        self._query_transformer = query_transformer
+        self._bm25_searcher = bm25_searcher
+        self._search_fuser = search_fuser
 
     async def search(self, command: RetrievalCommand) -> RetrievalResult:
         self._ensure_configured()
-        query = _normalize_query(command.query)
+
+        # 1. Query normalization
+        normalized_query = self._normalize_query_text(command.query)
+
+        # 2. Query transformation (if enabled)
+        transformed_query = await self._transform_query(normalized_query)
 
         top_k = self._resolve_top_k(
             command.top_k,
@@ -56,16 +87,50 @@ class RetrievalService:
             field_name="top_k",
         )
 
-        query_vector = (await self._embedding_provider.embed_texts([query]))[0]
-        hits = await self._vector_searcher.search(
-            collection_names=self._text_collection_names(),
-            query_vector=query_vector,
-            notebook_id=command.notebook_id,
-            source_ids=command.source_ids,
-            content_types=command.content_types,
-            limit=top_k,
-            score_threshold=command.score_threshold,
-        )
+        # 3. Hybrid search: Vector + BM25 (if enabled)
+        if self._bm25_searcher and self._search_fuser:
+            # Perform both vector and BM25 search concurrently
+            import asyncio
+
+            vector_hits, bm25_hits = await asyncio.gather(
+                self._vector_search_with_variants(transformed_query, command, top_k),
+                self._bm25_search_with_variants(
+                    transformed_query,
+                    command,
+                    self._bm25_top_k,
+                ),
+            )
+
+            # Fuse results using RRF
+            fused_hits = self._search_fuser.fuse(
+                vector_hits=vector_hits, bm25_hits=bm25_hits, top_k=top_k
+            )
+
+            # Convert fused hits to VectorSearchHit format for backward compatibility
+            hits = tuple(
+                VectorSearchHit(
+                    node_id=hit.node_id,
+                    score=hit.fused_score,
+                    collection_name=hit.collection_name,
+                    payload={
+                        "retrieval_mode": "hybrid",
+                        "fused_score": hit.fused_score,
+                        "vector_score": hit.vector_score,
+                        "bm25_score": hit.bm25_score,
+                        "vector_rank": hit.vector_rank,
+                        "bm25_rank": hit.bm25_rank,
+                        "bm25_matched_terms": hit.matched_terms,
+                        **hit.payload,
+                    },
+                )
+                for hit in fused_hits
+            )
+        else:
+            # Vector-only search (original behavior)
+            hits = await self._vector_search_with_variants(
+                transformed_query, command, top_k
+            )
+
         hydrated_nodes = await self._hydrate_nodes(tuple(hit.node_id for hit in hits))
         nodes_by_id = {node.node_id: node for node in hydrated_nodes}
         context_nodes_by_child_id = await self._hydrate_parent_contexts(hydrated_nodes)
@@ -94,7 +159,7 @@ class RetrievalService:
                 break
 
         return RetrievalResult(
-            query=query,
+            query=normalized_query.normalized,
             notebook_id=command.notebook_id,
             results=tuple(results),
         )
@@ -102,16 +167,23 @@ class RetrievalService:
     async def answer(self, command: AnswerCommand) -> AnswerResult:
         self._ensure_configured()
         self._ensure_answer_configured()
-        query = _normalize_query(command.query)
+
+        # Query normalization
+        normalized_query = self._normalize_query_text(command.query)
+        query = normalized_query.normalized
+
+        fine_enabled = self._fine_reranking_enabled()
+        retrieval_default_top_k = self._coarse_top_k if fine_enabled else self._default_top_k
+        rerank_default_top_k = self._fine_top_k if fine_enabled else self._default_rerank_top_k
 
         retrieval_top_k = self._resolve_top_k(
             command.retrieval_top_k,
-            default_top_k=self._default_top_k,
+            default_top_k=retrieval_default_top_k,
             field_name="retrieval_top_k",
         )
         rerank_top_k = self._resolve_top_k(
             command.rerank_top_k,
-            default_top_k=self._default_rerank_top_k,
+            default_top_k=rerank_default_top_k,
             field_name="rerank_top_k",
         )
 
@@ -125,11 +197,13 @@ class RetrievalService:
                 score_threshold=command.score_threshold,
             )
         )
-        reranked_nodes = await self._reranker.rerank(
+
+        reranked_nodes = await self._rerank_answer_nodes(
             query=query,
             nodes=retrieval_result.results,
-            top_k=min(rerank_top_k, len(retrieval_result.results)),
+            top_k=rerank_top_k,
         )
+
         contexts = _context_items_from_reranked(
             reranked_nodes[: self._max_context_items]
         )
@@ -150,9 +224,18 @@ class RetrievalService:
             citations=citations,
             retrieval_count=len(retrieval_result.results),
             rerank_count=len(reranked_nodes),
-            reranker_name=self._reranker.name,
+            reranker_name=self._reranker_name(),
             answer_generator_name=self._answer_generator.name,
-            metadata=generated_answer.metadata,
+            metadata={
+                **generated_answer.metadata,
+                "reranking": {
+                    "stages": list(self._reranking_stages),
+                    "coarse_reranker": self._reranker.name,
+                    "fine_reranker": self._fine_reranker.name
+                    if self._fine_reranker is not None
+                    else None,
+                },
+            },
         )
 
     async def _hydrate_nodes(self, node_ids: tuple[str, ...]) -> tuple[IndexNode, ...]:
@@ -182,6 +265,131 @@ class RetrievalService:
             sorted({profile.text_collection for profile in self._profile_registry.list()})
         )
 
+    def _normalize_query_text(self, query: str) -> NormalizedQuery:
+        """Normalize query text."""
+        if self._query_normalizer:
+            return self._query_normalizer.normalize(query)
+
+        # Fallback to basic normalization
+        normalized = _normalize_query(query)
+        return NormalizedQuery(original=query, normalized=normalized, language=None)
+
+    async def _transform_query(self, query: NormalizedQuery) -> "TransformedQuery":  # noqa: F821
+        """Transform query using configured strategy."""
+        from ragmax.application.retrieval.query_dtos import TransformedQuery
+
+        if self._query_transformer:
+            return await self._query_transformer.transform(query)
+
+        # Fallback: no transformation
+        return TransformedQuery(
+            original=query.normalized,
+            variants=(query.normalized,),
+            strategy="original",
+            metadata=None,
+        )
+
+    async def _vector_search_with_variants(
+        self,
+        transformed_query: "TransformedQuery",  # noqa: F821
+        command: RetrievalCommand,
+        top_k: int,
+    ) -> tuple[VectorSearchHit, ...]:
+        """Perform vector search with query variants."""
+        from ragmax.application.retrieval.ports import VectorSearchHit
+
+        all_hits: list[VectorSearchHit] = []
+        seen_node_ids: set[str] = set()
+
+        for variant in transformed_query.variants:
+            query_vector = (await self._embedding_provider.embed_texts([variant]))[0]
+            hits = await self._vector_searcher.search(
+                collection_names=self._text_collection_names(),
+                query_vector=query_vector,
+                notebook_id=command.notebook_id,
+                source_ids=command.source_ids,
+                content_types=command.content_types,
+                limit=top_k,
+                score_threshold=command.score_threshold,
+            )
+
+            # Deduplicate across variants
+            for hit in hits:
+                if hit.node_id not in seen_node_ids:
+                    all_hits.append(hit)
+                    seen_node_ids.add(hit.node_id)
+
+        # Sort by score and limit
+        all_hits.sort(key=lambda x: x.score, reverse=True)
+        return tuple(all_hits[:top_k])
+
+    async def _bm25_search_with_variants(
+        self,
+        transformed_query: "TransformedQuery",  # noqa: F821
+        command: RetrievalCommand,
+        top_k: int,
+    ) -> tuple["BM25SearchHit", ...]:  # noqa: F821
+        """Perform BM25 search with query variants."""
+        from ragmax.application.retrieval.fusion_dtos import BM25SearchHit
+
+        if not self._bm25_searcher:
+            return ()
+
+        all_hits: list[BM25SearchHit] = []
+        seen_node_ids: set[str] = set()
+
+        for variant in transformed_query.variants:
+            hits = await self._bm25_searcher.search(
+                query=variant,
+                collection_names=self._text_collection_names(),
+                notebook_id=command.notebook_id,
+                source_ids=command.source_ids,
+                content_types=command.content_types,
+                limit=top_k,
+            )
+
+            # Deduplicate across variants
+            for hit in hits:
+                if hit.node_id not in seen_node_ids:
+                    all_hits.append(hit)
+                    seen_node_ids.add(hit.node_id)
+
+        # Sort by score and limit
+        all_hits.sort(key=lambda x: x.score, reverse=True)
+        return tuple(all_hits[:top_k])
+
+    async def _rerank_answer_nodes(
+        self,
+        *,
+        query: str,
+        nodes: tuple[RetrievedNode, ...],
+        top_k: int,
+    ) -> tuple[RerankedNode, ...]:
+        if not nodes:
+            return ()
+
+        current_nodes: tuple[RetrievedNode, ...] = nodes
+        if "coarse" in self._reranking_stages:
+            coarse_nodes = await self._reranker.rerank(
+                query=query,
+                nodes=current_nodes,
+                top_k=min(self._coarse_top_k, len(current_nodes)),
+            )
+            current_nodes = tuple(item.retrieved_node for item in coarse_nodes)
+            if "fine" not in self._reranking_stages:
+                return coarse_nodes[: min(top_k, len(coarse_nodes))]
+
+        if "fine" in self._reranking_stages:
+            if self._fine_reranker is None:
+                raise ConfigurationError("Fine reranker is not configured.")
+            return await self._fine_reranker.rerank(
+                query=query,
+                nodes=current_nodes,
+                top_k=min(top_k, len(current_nodes)),
+            )
+
+        raise ConfigurationError("No retrieval reranking stage is configured.")
+
     def _ensure_configured(self) -> None:
         if self._embedding_provider is None or self._vector_searcher is None:
             raise ConfigurationError("Retrieval is not configured.")
@@ -191,6 +399,8 @@ class RetrievalService:
             raise ConfigurationError("Reranker is not configured.")
         if self._answer_generator is None:
             raise ConfigurationError("Answer generation is not configured.")
+        if "fine" in self._reranking_stages and self._fine_reranker is None:
+            raise ConfigurationError("Fine reranker is not configured.")
 
     def _resolve_top_k(
         self,
@@ -205,6 +415,21 @@ class RetrievalService:
                 f"{field_name} must be between 1 and {self._max_top_k}."
             )
         return top_k
+
+    def _normalize_configured_top_k(self, value: int, field_name: str) -> int:
+        if value < 1:
+            raise ConfigurationError(f"{field_name} must be at least 1.")
+        return min(value, self._max_top_k)
+
+    def _fine_reranking_enabled(self) -> bool:
+        return "fine" in self._reranking_stages
+
+    def _reranker_name(self) -> str:
+        if self._fine_reranking_enabled() and self._fine_reranker is not None:
+            if "coarse" in self._reranking_stages:
+                return f"{self._reranker.name}+{self._fine_reranker.name}"
+            return self._fine_reranker.name
+        return self._reranker.name
 
 
 def _normalize_query(query: str) -> str:
