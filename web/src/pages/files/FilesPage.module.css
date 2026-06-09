@@ -1,0 +1,198 @@
+.page {
+  --files-workspace-height: calc(100dvh - var(--layout-header-height, 92px) - 84px);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  height: var(--files-workspace-height);
+  min-height: 560px;
+  width: 100%;
+  min-width: 0;
+}
+
+.toolbar {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  min-height: 42px;
+}
+
+.segmentedNav {
+  align-items: center;
+  background: #eeeeef;
+  border-radius: 6px;
+  display: inline-flex;
+  gap: 6px;
+  min-height: 40px;
+  padding: 4px;
+}
+
+.segmentedItem,
+.segmentedItemActive {
+  align-items: center;
+  border-radius: 5px;
+  color: #656b75;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 750;
+  height: 32px;
+  min-width: 56px;
+  padding: 0 13px;
+  text-decoration: none;
+  transition:
+    background 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.segmentedItem:hover {
+  background: rgba(255, 255, 255, 0.58);
+  color: #20242a;
+}
+
+.segmentedItemActive {
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(24, 29, 35, 0.08);
+  color: #111418;
+}
+
+.toolbarActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.searchBox {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #d9dde3;
+  border-radius: 6px;
+  color: #7a838c;
+  display: inline-flex;
+  gap: 8px;
+  height: 32px;
+  min-width: min(128px, 100%);
+  padding: 0 9px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.searchBox:focus-within {
+  border-color: #38ad99;
+  box-shadow: 0 0 0 3px rgba(56, 173, 153, 0.14);
+}
+
+.searchBox input {
+  background: transparent;
+  border: 0;
+  color: #24282d;
+  flex: 1;
+  font-size: 14px;
+  font: inherit;
+  min-width: 0;
+  outline: 0;
+}
+
+.searchBox input::placeholder {
+  color: #9aa3ab;
+}
+
+.uploadButton {
+  align-items: center;
+  background: #111214;
+  border: 1px solid #111214;
+  border-radius: 6px;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 750;
+  gap: 8px;
+  height: 32px;
+  padding: 0 13px;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.uploadButton:hover {
+  background: #000000;
+  border-color: #000000;
+  box-shadow: 0 8px 18px rgba(17, 18, 20, 0.14);
+  transform: translateY(-1px);
+}
+
+.uploadButton:active {
+  transform: translateY(0);
+}
+
+.uploadButton:focus-visible {
+  outline: 3px solid rgba(56, 173, 153, 0.24);
+  outline-offset: 2px;
+}
+
+.listArea {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.listArea > * {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .page {
+    height: auto;
+    min-height: calc(100dvh - var(--layout-header-height, 76px) - 56px);
+  }
+
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    justify-content: flex-start;
+  }
+
+  .toolbarActions {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .segmentedNav {
+    align-self: flex-start;
+  }
+
+  .searchBox {
+    flex: 1 1 180px;
+    height: 40px;
+  }
+
+  .uploadButton {
+    flex: 0 0 auto;
+    height: 40px;
+  }
+
+  .listArea {
+    min-height: 520px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .searchBox,
+  .uploadButton {
+    transition: none;
+  }
+
+  .uploadButton:hover {
+    transform: none;
+  }
+}

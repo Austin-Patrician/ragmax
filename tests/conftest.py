@@ -15,6 +15,9 @@ from ragmax.infrastructure.db.base import Base, import_models
 from ragmax.infrastructure.db.repositories.auth import bootstrap_auth_user
 from ragmax.infrastructure.db.repositories.indexing import SqlAlchemyIndexingUnitOfWork
 from ragmax.infrastructure.db.session import get_db_session
+from ragmax.infrastructure.storage.local_indexing_artifact_storage import (
+    LocalIndexingArtifactStorage,
+)
 from ragmax.infrastructure.storage.local_source_storage import LocalSourceStorage
 from ragmax.main import create_app
 
@@ -82,13 +85,18 @@ def persisted_client(tmp_path) -> Iterator[TestClient]:
 
     app = create_app()
     app.dependency_overrides[get_db_session] = db_session_override(session_factory)
-    app.dependency_overrides[get_indexing_service] = lambda: create_indexing_service(
-        unit_of_work_factory=lambda: SqlAlchemyIndexingUnitOfWork(session_factory)
-    )
-    app.dependency_overrides[get_source_storage] = lambda: LocalSourceStorage(
+    source_storage = LocalSourceStorage(
         root_dir=tmp_path / "storage",
         max_upload_bytes=10 * 1024 * 1024,
     )
+    app.dependency_overrides[get_indexing_service] = lambda: create_indexing_service(
+        unit_of_work_factory=lambda: SqlAlchemyIndexingUnitOfWork(session_factory),
+        artifact_storage=LocalIndexingArtifactStorage(
+            root_dir=tmp_path / "indexing-artifacts",
+        ),
+        source_storage=source_storage,
+    )
+    app.dependency_overrides[get_source_storage] = lambda: source_storage
 
     with TestClient(app) as test_client:
         authenticate_test_client(test_client)

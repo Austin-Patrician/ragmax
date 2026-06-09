@@ -1,6 +1,10 @@
 from collections.abc import Callable
-from functools import lru_cache
+from typing import Annotated
 
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ragmax.application.datasets.service import DatasetService
 from ragmax.application.indexing.parser_registry import ParserSpec, SourceParserRegistry
 from ragmax.application.indexing.ports import (
     EmbeddingProvider,
@@ -15,8 +19,13 @@ from ragmax.application.retrieval.ports import AnswerGenerator, Reranker, Vector
 from ragmax.application.retrieval.service import RetrievalService
 from ragmax.core.config import Settings, get_settings
 from ragmax.core.exceptions import ConfigurationError
+from ragmax.infrastructure.db.repositories.datasets.dataset_repository import (
+    SQLAlchemyDatasetFileRepository,
+    SQLAlchemyDatasetRepository,
+)
 from ragmax.infrastructure.db.repositories.indexing import SqlAlchemyIndexingUnitOfWork
-from ragmax.infrastructure.db.session import SessionLocal
+from ragmax.infrastructure.db.repositories.user_settings import resolve_effective_settings
+from ragmax.infrastructure.db.session import SessionLocal, get_db_session
 from ragmax.infrastructure.indexing.analyzers.heuristic_source_analyzer import (
     HeuristicSourceAnalyzer,
 )
@@ -47,25 +56,49 @@ from ragmax.infrastructure.retrieval.answer_generators.extractive_answer_generat
 from ragmax.infrastructure.retrieval.rerankers.score_keyword_reranker import (
     ScoreKeywordReranker,
 )
+from ragmax.infrastructure.storage.local_indexing_artifact_storage import (
+    LocalIndexingArtifactStorage,
+)
 from ragmax.infrastructure.storage.local_source_storage import LocalSourceStorage
 
 
-@lru_cache
-def get_indexing_service() -> IndexingService:
-    return create_indexing_service()
+async def get_effective_runtime_settings(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> Settings:
+    return await resolve_effective_settings(session, get_settings())
 
 
-@lru_cache
-def get_retrieval_service() -> RetrievalService:
-    return create_retrieval_service()
+async def get_indexing_service(
+    settings: Annotated[Settings, Depends(get_effective_runtime_settings)],
+) -> IndexingService:
+    return create_indexing_service(settings=settings)
+
+
+async def get_dataset_service() -> DatasetService:
+    """Dependency for DatasetService with per-request database session."""
+    async with SessionLocal() as session:
+        yield DatasetService(
+            dataset_repo=SQLAlchemyDatasetRepository(session),
+            dataset_file_repo=SQLAlchemyDatasetFileRepository(session),
+        )
+        await session.commit()
+
+
+async def get_retrieval_service(
+    settings: Annotated[Settings, Depends(get_effective_runtime_settings)],
+) -> RetrievalService:
+    return create_retrieval_service(settings=settings)
 
 
 def create_indexing_service(
     unit_of_work_factory: Callable[[], IndexingUnitOfWork] | None = None,
     embedding_provider: EmbeddingProvider | None = None,
     vector_index_writer: VectorIndexWriter | None = None,
+    artifact_storage: LocalIndexingArtifactStorage | None = None,
+    source_storage: LocalSourceStorage | None = None,
+    settings: Settings | None = None,
 ) -> IndexingService:
-    settings = get_settings()
+    settings = settings or get_settings()
     if settings.vector_index_enabled:
         embedding_provider = embedding_provider or create_embedding_provider(settings)
         vector_index_writer = vector_index_writer or QdrantVectorIndexWriter(
@@ -159,6 +192,8 @@ def create_indexing_service(
         vector_index_writer=vector_index_writer,
         unit_of_work_factory=unit_of_work_factory
         or (lambda: SqlAlchemyIndexingUnitOfWork(SessionLocal)),
+        artifact_storage=artifact_storage or get_indexing_artifact_storage(settings),
+        source_storage=source_storage or get_source_storage_from_settings(settings),
     )
 
 
@@ -171,8 +206,9 @@ def create_retrieval_service(
     reranker: Reranker | None = None,
     fine_reranker: Reranker | None = None,
     answer_generator: AnswerGenerator | None = None,
+    settings: Settings | None = None,
 ) -> RetrievalService:
-    settings = get_settings()
+    settings = settings or get_settings()
     reranking_stages = _parse_reranking_stages(settings.retrieval_reranking_stages)
 
     # Query processing
@@ -264,12 +300,28 @@ def create_retrieval_service(
     )
 
 
-@lru_cache
-def get_source_storage() -> LocalSourceStorage:
-    settings = get_settings()
+async def get_source_storage(
+    settings: Annotated[Settings, Depends(get_effective_runtime_settings)],
+) -> LocalSourceStorage:
+    return get_source_storage_from_settings(settings)
+
+
+def get_source_storage_from_settings(
+    settings: Settings | None = None,
+) -> LocalSourceStorage:
+    resolved_settings = settings or get_settings()
     return LocalSourceStorage(
-        root_dir=settings.source_storage_dir,
-        max_upload_bytes=settings.max_upload_bytes,
+        root_dir=resolved_settings.source_storage_dir,
+        max_upload_bytes=resolved_settings.max_upload_bytes,
+    )
+
+
+def get_indexing_artifact_storage(
+    settings: Settings | None = None,
+) -> LocalIndexingArtifactStorage:
+    resolved_settings = settings or get_settings()
+    return LocalIndexingArtifactStorage(
+        root_dir=resolved_settings.indexing_artifact_storage_dir
     )
 
 

@@ -1,0 +1,227 @@
+.page {
+  --settings-ink: #202124;
+  --settings-muted: #72787e;
+  --settings-line: #dde2e5;
+  --settings-panel: #fffffb;
+  --settings-tint: #edf7f4;
+  --settings-accent: #0f9a83;
+  align-items: start;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: 260px minmax(0, 1fr);
+  margin: 0 auto;
+  max-width: 1640px;
+}
+
+.sidebar {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(15, 154, 131, 0.11), transparent 34%),
+    #ffffff;
+  border: 1px solid var(--settings-line);
+  border-radius: 22px;
+  box-shadow: 0 18px 60px rgba(33, 45, 52, 0.06);
+  min-height: calc(100dvh - 156px);
+  padding: 20px;
+  position: sticky;
+  top: 116px;
+}
+
+.identity {
+  align-items: center;
+  border-bottom: 1px solid var(--settings-line);
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+}
+
+.identityAvatar,
+.largeAvatar {
+  background: #0a8f7c;
+  color: #ffffff;
+  font-weight: 850;
+}
+
+.navButton {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 13px;
+  color: var(--settings-muted);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 760;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  text-align: left;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+  width: 100%;
+}
+
+.navButton:hover {
+  background: #f4f6f6;
+  color: var(--settings-ink);
+  transform: translateX(2px);
+}
+
+.navButtonActive {
+  background: #eef1ef;
+  color: #151617;
+}
+
+.content {
+  min-width: 0;
+}
+
+.panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 251, 0.96)),
+    radial-gradient(circle at 72% 80%, rgba(15, 154, 131, 0.08), transparent 40%);
+  border-color: var(--settings-line);
+  box-shadow: 0 18px 60px rgba(33, 45, 52, 0.05);
+  overflow: hidden;
+}
+
+.panelHeader {
+  padding: 22px 24px 18px;
+}
+
+.panelHeader h2 {
+  color: var(--settings-ink);
+  font-size: clamp(25px, 2.5vw, 34px);
+  letter-spacing: -0.045em;
+}
+
+.formBody {
+  padding: 22px 24px 26px;
+}
+
+.profileRow {
+  align-items: start;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+}
+
+.monoValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.avatarRow {
+  align-items: center;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 150px auto minmax(0, 1fr);
+}
+
+.modelsGrid {
+  align-items: start;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.9fr);
+}
+
+.presets {
+  padding: 18px 18px 22px;
+}
+
+.presetButton {
+  background: #ffffff;
+  border: 1px solid var(--settings-line);
+  border-radius: 14px;
+  color: var(--settings-ink);
+  cursor: pointer;
+  padding: 14px;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+  width: 100%;
+}
+
+.presetButton:hover {
+  border-color: rgba(15, 154, 131, 0.42);
+  box-shadow: 0 12px 28px rgba(33, 45, 52, 0.08);
+  transform: translateY(-1px);
+}
+
+.presetMark {
+  align-items: center;
+  background: var(--settings-tint);
+  border-radius: 12px;
+  color: var(--settings-accent);
+  display: grid;
+  height: 38px;
+  place-items: center;
+  width: 38px;
+}
+
+.providerCard {
+  background: #ffffff;
+  border: 1px solid var(--settings-line);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.badgeDelete {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  margin-left: 4px;
+  padding: 0;
+}
+
+.sectionTitle {
+  font-size: 18px;
+  letter-spacing: -0.03em;
+}
+
+.configBoolean {
+  background: #ffffff;
+}
+
+@media (max-width: 1180px) {
+  .page,
+  .modelsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    min-height: auto;
+    position: static;
+  }
+}
+
+@media (max-width: 680px) {
+  .page {
+    gap: 16px;
+  }
+
+  .profileRow,
+  .avatarRow {
+    grid-template-columns: 1fr;
+  }
+
+  .panelHeader,
+  .formBody {
+    padding-inline: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navButton,
+  .presetButton {
+    transition: none;
+  }
+}

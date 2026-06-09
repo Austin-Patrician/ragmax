@@ -1,0 +1,136 @@
+.container {
+  background: #fbfcfd;
+  border-color: #dfe5ea;
+  box-shadow: 0 10px 28px rgba(31, 42, 55, 0.06);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.header {
+  border-bottom: 1px solid #e6ebef;
+  margin-bottom: var(--mantine-spacing-md);
+  padding-bottom: var(--mantine-spacing-sm);
+  flex-shrink: 0;
+}
+
+.scrollArea {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.fileCard {
+  display: flex;
+  gap: var(--mantine-spacing-sm);
+  padding: var(--mantine-spacing-sm);
+  border: 1px solid #e0e5ea;
+  border-radius: 8px;
+  background: var(--mantine-color-white);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.fileCard:hover {
+  background: #f7fafc;
+  border-color: #cbd5df;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 16px rgba(31, 42, 55, 0.08);
+}
+
+.fileCard:active {
+  transform: translateY(0);
+}
+
+.fileCardSelected {
+  background: #ecf8f5;
+  border-color: #38ad99;
+  box-shadow: inset 3px 0 0 #38ad99;
+}
+
+.fileCardSelected:hover {
+  background: #e4f5f1;
+  border-color: #258f7d;
+}
+
+.fileIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: #eef2f5;
+}
+
+.fileCardSelected .fileIcon {
+  background: #cceee7;
+}
+
+.fileBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.fileName {
+  word-break: break-all;
+}
+
+.iconSuccess {
+  color: var(--mantine-color-green-6);
+}
+
+.iconError {
+  color: var(--mantine-color-red-6);
+}
+
+.iconPending {
+  color: var(--mantine-color-yellow-6);
+}
+
+.iconDefault {
+  color: var(--mantine-color-gray-6);
+}
+
+@media (prefers-color-scheme: dark) {
+  .fileCard {
+    background: var(--mantine-color-dark-6);
+    border-color: var(--mantine-color-dark-4);
+  }
+
+  .fileCard:hover {
+    background: var(--mantine-color-dark-5);
+    border-color: var(--mantine-color-dark-3);
+  }
+
+  .fileCardSelected {
+    background: var(--mantine-color-dark-5);
+    border-color: var(--mantine-color-blue-7);
+  }
+
+  .fileCardSelected:hover {
+    background: var(--mantine-color-dark-4);
+  }
+
+  .fileIcon {
+    background: var(--mantine-color-dark-5);
+  }
+
+  .fileCardSelected .fileIcon {
+    background: var(--mantine-color-dark-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fileCard {
+    transition: none;
+  }
+
+  .fileCard:hover {
+    transform: none;
+  }
+}

@@ -1,0 +1,91 @@
+.toolbar {
+  background: #f7f9fa;
+  gap: 10px;
+  min-height: 54px;
+  padding: 9px 12px 11px;
+}
+
+.controlGroup,
+.datasetGroup {
+  min-width: 0;
+}
+
+.iconButton {
+  border-radius: 8px;
+  color: #60707d;
+  height: 36px;
+  min-width: 36px;
+  width: 36px;
+}
+
+.iconButton:hover {
+  background: #edf2f4;
+  color: #1f2b34;
+}
+
+.modeButton {
+  border-radius: 8px;
+  font-weight: 800;
+  min-height: 36px;
+}
+
+.select {
+  min-width: 0;
+}
+
+.modelSelect {
+  width: 168px;
+}
+
+.datasetSelect {
+  width: 196px;
+}
+
+.selectInput {
+  background: #ffffff;
+  border: 1px solid #dfe5ea;
+  border-radius: 8px;
+  color: #24313b;
+  font-size: 13px;
+  font-weight: 650;
+  min-height: 36px;
+}
+
+.selectInput:focus {
+  border-color: #409f93;
+  box-shadow: 0 0 0 3px rgba(64, 159, 147, 0.14);
+}
+
+@media (max-width: 860px) {
+  .toolbar {
+    align-items: stretch;
+  }
+
+  .datasetGroup {
+    flex: 1 1 100%;
+  }
+
+  .datasetSelect {
+    width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .toolbar {
+    gap: 8px;
+    padding: 8px 10px 10px;
+  }
+
+  .controlGroup {
+    flex: 1 1 auto;
+  }
+
+  .modelSelect {
+    flex: 1 1 132px;
+    width: auto;
+  }
+
+  .selectInput {
+    font-size: 12px;
+  }
+}

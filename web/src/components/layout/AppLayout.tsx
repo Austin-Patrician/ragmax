@@ -1,6 +1,6 @@
-import { ActionIcon, Avatar, Burger, Group, Text } from '@mantine/core'
+import { ActionIcon, Avatar, Burger, Group, Text, UnstyledButton } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { CircleHelp, LogOut, Sparkles, Sun, Workflow } from 'lucide-react'
+import { CircleHelp, LogOut, Workflow } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { NavLink as RouterNavLink, Outlet, useNavigate } from 'react-router'
 import { useAuth } from '@/auth/useAuth'
@@ -33,6 +33,7 @@ export function AppLayout() {
     utilityBar: classes.utilityBar ?? '',
     utilityIcon: classes.utilityIcon ?? '',
     languageSlot: classes.languageSlot ?? '',
+    userChip: classes.userChip ?? '',
     userName: classes.userName ?? '',
     avatar: classes.avatar ?? '',
     main: classes.main ?? '',
@@ -58,10 +59,10 @@ export function AppLayout() {
             <span />
           </div>
           <Text className={classNames.brandText}>{t('app.brandName', APP_NAME)}</Text>
-          <span className={classNames.upgrade}>
+          {/* <span className={classNames.upgrade}>
             <Sparkles size={13} />
             {t('app.upgrade')}
-          </span>
+          </span> */}
         </Group>
 
         <nav
@@ -111,14 +112,14 @@ export function AppLayout() {
           <div className={classNames.languageSlot}>
             <LanguageSwitcher />
           </div>
-          <ActionIcon
+          {/* <ActionIcon
             className={classNames.utilityIcon}
             variant="subtle"
             aria-label={t('app.theme')}
             disabled
           >
             <Sun size={17} />
-          </ActionIcon>
+          </ActionIcon> */}
           <ActionIcon
             className={classNames.utilityIcon}
             variant="subtle"
@@ -127,12 +128,16 @@ export function AppLayout() {
           >
             <LogOut size={17} />
           </ActionIcon>
-          <Group gap={8} wrap="nowrap">
+          <UnstyledButton
+            className={classNames.userChip}
+            aria-label={t('settings.openUserSettings', 'Open user settings')}
+            onClick={() => navigate(ROUTES.userSettings)}
+          >
             <Text className={classNames.userName}>{user?.username}</Text>
             <Avatar className={classNames.avatar} radius="xl" size={40}>
               {userInitial}
             </Avatar>
-          </Group>
+          </UnstyledButton>
         </Group>
 
         <Burger

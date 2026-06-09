@@ -1,7 +1,9 @@
 import hashlib
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+import anyio
 from fastapi import UploadFile
 
 from ragmax.core.exceptions import InvalidRequestError
@@ -44,6 +46,27 @@ class LocalSourceStorage:
             size_bytes=size_bytes,
             sha256=hashlib.sha256(content).hexdigest(),
         )
+
+    async def delete_source(self, source_id: str) -> bool:
+        return await anyio.to_thread.run_sync(self._delete_source_sync, source_id)
+
+    def _delete_source_sync(self, source_id: str) -> bool:
+        source_dir = self._source_dir_for(source_id)
+        if not source_dir.exists():
+            return False
+        if source_dir.is_dir():
+            shutil.rmtree(source_dir)
+        else:
+            source_dir.unlink()
+        return True
+
+    def _source_dir_for(self, source_id: str) -> Path:
+        source_dir = self._root_dir / _safe_path_part(source_id)
+        root = self._root_dir.resolve()
+        resolved = source_dir.resolve()
+        if resolved != root and root not in resolved.parents:
+            raise InvalidRequestError("Invalid source storage path.")
+        return resolved
 
 
 def _safe_path_part(value: str) -> str:

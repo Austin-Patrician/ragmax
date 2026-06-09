@@ -1,0 +1,139 @@
+.chatShell {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.header {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.86);
+  border-bottom: 1px solid #e7ebef;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 16px;
+  justify-content: space-between;
+  min-height: 70px;
+  padding: 12px clamp(18px, 2.5vw, 32px);
+}
+
+.headerTitle {
+  min-width: 0;
+}
+
+.headerIcon {
+  background: #eef7f5;
+  border: 1px solid #d6ece7;
+  border-radius: 8px;
+  color: #207667;
+  flex: 0 0 auto;
+}
+
+.headerText {
+  min-width: 0;
+}
+
+.title {
+  color: #172026;
+  font-size: 17px;
+  font-weight: 820;
+  line-height: 1.25;
+}
+
+.subtitle {
+  color: #6b7785;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.modeBadge,
+.devBadge {
+  border-radius: 999px;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 800;
+  height: 28px;
+  padding-inline: 12px;
+}
+
+.modeBadge {
+  background: #edf7f4;
+  color: #1c6a5d;
+}
+
+.devBadge {
+  background: #fff4df;
+  color: #9a5a10;
+}
+
+.scrollArea {
+  flex: 1;
+  min-height: 0;
+}
+
+.scrollArea :global(.mantine-ScrollArea-viewport) {
+  height: 100%;
+}
+
+.container {
+  margin: 0 auto;
+  max-width: 980px;
+  min-height: 100%;
+  padding: 26px clamp(18px, 3vw, 36px) 22px;
+  width: 100%;
+}
+
+.emptyState {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(100% - 12px);
+  padding: 48px 16px;
+  text-align: center;
+}
+
+.emptyIcon {
+  background: #f0f8f6;
+  border: 1px solid #d7ebe6;
+  border-radius: 8px;
+  color: #207667;
+  margin-bottom: 16px;
+}
+
+.emptyTitle {
+  color: #202a31;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.emptyHint {
+  color: #66727d;
+  font-size: 14px;
+  line-height: 1.55;
+  margin-top: 6px;
+  max-width: 420px;
+}
+
+.messageList {
+  padding-bottom: 4px;
+}
+
+@media (max-width: 760px) {
+  .header {
+    min-height: 62px;
+    padding: 10px 14px;
+  }
+
+  .subtitle {
+    display: none;
+  }
+
+  .container {
+    padding: 18px 12px 16px;
+  }
+}

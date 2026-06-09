@@ -1,0 +1,41 @@
+.sourceCard {
+  background: #ffffff;
+  border: 1px solid #e0e6eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.sourceCard:hover {
+  border-color: #409f93;
+  box-shadow: 0 8px 18px rgba(64, 159, 147, 0.12);
+  transform: translateY(-1px);
+}
+
+.sourceCard:focus-within {
+  border-color: #409f93;
+  box-shadow: 0 0 0 3px rgba(64, 159, 147, 0.15);
+}
+
+.sourceMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.sourceText {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sourceCard {
+    transition: none;
+  }
+
+  .sourceCard:hover {
+    transform: none;
+  }
+}

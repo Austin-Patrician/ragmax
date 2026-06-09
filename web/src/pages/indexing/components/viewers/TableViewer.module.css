@@ -1,0 +1,38 @@
+.tableContainer {
+  max-height: 600px;
+  overflow-y: auto;
+  border-radius: var(--mantine-radius-md);
+  border: 1px solid #E5E7EB;
+}
+
+.statsCard {
+  background: #EFF6FF;
+  border-left: 4px solid #1E40AF;
+}
+
+.paginationBar {
+  position: sticky;
+  top: 0;
+  background: #F8FAFC;
+  z-index: 10;
+  padding: var(--mantine-spacing-sm);
+  border-bottom: 1px solid #E5E7EB;
+  box-shadow: 0 2px 4px rgba(30, 64, 175, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  .tableContainer {
+    border-color: #374151;
+  }
+
+  .statsCard {
+    background: #1E3A8A;
+    border-left-color: #3B82F6;
+  }
+
+  .paginationBar {
+    background: var(--mantine-color-dark-6);
+    border-bottom-color: var(--mantine-color-dark-4);
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.15);
+  }
+}

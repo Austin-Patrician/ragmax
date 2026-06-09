@@ -73,18 +73,20 @@ def retrieval_client(tmp_path) -> Iterator[tuple[TestClient, FakeVectorSearcher]
 
     app = create_app()
     app.dependency_overrides[get_db_session] = db_session_override(session_factory)
+    source_storage = LocalSourceStorage(
+        root_dir=tmp_path / "storage",
+        max_upload_bytes=10 * 1024 * 1024,
+    )
     app.dependency_overrides[get_indexing_service] = lambda: create_indexing_service(
-        unit_of_work_factory=lambda: SqlAlchemyIndexingUnitOfWork(session_factory)
+        unit_of_work_factory=lambda: SqlAlchemyIndexingUnitOfWork(session_factory),
+        source_storage=source_storage,
     )
     app.dependency_overrides[get_retrieval_service] = lambda: create_retrieval_service(
         unit_of_work_factory=lambda: SqlAlchemyIndexingUnitOfWork(session_factory),
         embedding_provider=embedding_provider,
         vector_searcher=vector_searcher,
     )
-    app.dependency_overrides[get_source_storage] = lambda: LocalSourceStorage(
-        root_dir=tmp_path / "storage",
-        max_upload_bytes=10 * 1024 * 1024,
-    )
+    app.dependency_overrides[get_source_storage] = lambda: source_storage
 
     with TestClient(app) as client:
         authenticate_test_client(client)

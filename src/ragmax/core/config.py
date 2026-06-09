@@ -23,18 +23,22 @@ class Settings(BaseSettings):
     auth_cookie_samesite: str = "lax"
     auth_bootstrap_username: str | None = None
     auth_bootstrap_password: SecretStr | None = None
-    auth_bootstrap_routes: str = "/indexing,/retrieval,/evaluation"
+    auth_bootstrap_routes: str = "/files,/datasets,/indexing,/retrieval,/evaluation"
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: SecretStr | None = None
 
     source_storage_dir: Path = Path("storage/sources")
+    indexing_artifact_storage_dir: Path = Path("storage/indexing-artifacts")
     max_upload_bytes: int = 50 * 1024 * 1024
 
     default_file_parser: str = "simple_directory_reader"
     llamaparse_default_tier: str = "agentic"
     llamaparse_default_version: str = "latest"
     llama_cloud_api_key: SecretStr | None = None
+    llamaparse_use_vendor_multimodal: bool = True
+    llamaparse_vendor_multimodal_model: str = "anthropic-sonnet-4"
+    llamaparse_take_screenshot: bool = True
 
     vector_index_enabled: bool = False
     vector_sparse_index_enabled: bool = True

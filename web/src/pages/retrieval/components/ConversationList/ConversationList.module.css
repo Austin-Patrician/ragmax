@@ -1,0 +1,393 @@
+.container {
+  background:
+    linear-gradient(180deg, #fbfaf6 0%, #f1f3ef 100%),
+    #f6f5f0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.stack {
+  height: 100%;
+  min-height: 0;
+  padding: 18px 14px;
+}
+
+.header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-height: 44px;
+  min-width: 0;
+}
+
+.brand {
+  flex: 1;
+  min-width: 0;
+}
+
+.brandIcon {
+  background: #121416;
+  border-radius: 8px;
+  color: #ffffff;
+  flex: 0 0 auto;
+}
+
+.titleBlock {
+  min-width: 0;
+}
+
+.kicker {
+  color: #6b746e;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.title {
+  color: #171a1d;
+  font-size: 18px;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.collapseButton,
+.newIconButton {
+  border-radius: 8px;
+  color: #47515c;
+  flex: 0 0 auto;
+  height: 44px;
+  min-width: 44px;
+  width: 44px;
+}
+
+.collapseButton:hover {
+  background: rgba(20, 22, 24, 0.07);
+  color: #141618;
+}
+
+.newConversation {
+  flex: 0 0 auto;
+}
+
+.newButton,
+.newIconButton {
+  background: #141516;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 20px rgba(17, 24, 39, 0.12);
+  color: #ffffff;
+  min-height: 44px;
+}
+
+.newButton {
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.newButton:hover,
+.newIconButton:hover {
+  background: #050607;
+}
+
+.searchWrap {
+  flex: 0 0 auto;
+}
+
+.searchInput {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid #dfe4dd;
+  border-radius: 8px;
+  color: #1d252d;
+  font-size: 14px;
+  min-height: 40px;
+}
+
+.searchInput:focus {
+  border-color: #409f93;
+  box-shadow: 0 0 0 3px rgba(64, 159, 147, 0.16);
+}
+
+.sectionHeader {
+  flex: 0 0 auto;
+  min-height: 28px;
+}
+
+.sectionTitle {
+  color: #718096;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.countBadge {
+  background: #ffffff;
+  border: 1px solid #dfe4dd;
+  color: #55616b;
+  min-width: 32px;
+}
+
+.scrollArea {
+  flex: 1;
+  min-height: 0;
+}
+
+.scrollArea :global(.mantine-ScrollArea-viewport) {
+  height: 100%;
+}
+
+.list {
+  padding: 2px 2px 10px;
+}
+
+.conversationCard {
+  align-items: flex-start;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  min-height: 76px;
+  padding: 10px;
+  text-align: left;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+  width: 100%;
+}
+
+.conversationCard:hover {
+  background: #ffffff;
+  border-color: #d8dfd8;
+  box-shadow: 0 8px 18px rgba(28, 40, 34, 0.08);
+  transform: translateY(-1px);
+}
+
+.conversationCard:focus-visible {
+  outline: 3px solid rgba(64, 159, 147, 0.22);
+  outline-offset: 2px;
+}
+
+.selected {
+  background: #ffffff;
+  border-color: #409f93;
+  box-shadow:
+    0 0 0 1px rgba(64, 159, 147, 0.32),
+    0 8px 18px rgba(28, 40, 34, 0.08);
+}
+
+.cardIcon {
+  align-items: center;
+  background: #eef4f1;
+  border-radius: 8px;
+  color: #287968;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.cardBody {
+  display: block;
+  flex: 1;
+  min-width: 0;
+}
+
+.cardTitle {
+  color: #1a2025;
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 1.35;
+}
+
+.cardPreview {
+  color: #63707b;
+  font-size: 12px;
+  line-height: 1.45;
+  margin-top: 3px;
+}
+
+.cardDate {
+  color: #83909b;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+  margin-top: 6px;
+}
+
+.messageCount {
+  align-items: center;
+  background: #eef4f1;
+  border-radius: 999px;
+  color: #386c61;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 800;
+  height: 22px;
+  justify-content: center;
+  min-width: 22px;
+  padding: 0 7px;
+}
+
+.emptyState {
+  align-items: center;
+  color: #6d7670;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+  min-height: 150px;
+  padding: 18px 8px;
+  text-align: center;
+}
+
+.emptyIcon {
+  background: #ffffff;
+  border: 1px solid #dfe4dd;
+  border-radius: 8px;
+  color: #5c6a61;
+}
+
+.emptyText {
+  color: #69746c;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.collapsed .stack {
+  align-items: center;
+  padding: 14px 10px;
+}
+
+.collapsed .brand {
+  justify-content: center;
+}
+
+.collapsed .titleBlock,
+.collapsed .searchWrap,
+.collapsed .sectionHeader {
+  display: none;
+}
+
+.collapsed .header {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.collapsed .brandIcon {
+  height: 44px;
+  width: 44px;
+}
+
+.collapsed .scrollArea,
+.collapsed .list,
+.collapsed .newConversation {
+  width: 100%;
+}
+
+.collapsed .conversationCard {
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0;
+}
+
+.collapsed .cardIcon {
+  background: transparent;
+  color: #4f5c66;
+  height: 44px;
+  width: 44px;
+}
+
+.collapsed .cardBody,
+.collapsed .messageCount,
+.collapsed .emptyText {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .stack {
+    align-items: center;
+    padding: 14px 10px;
+  }
+
+  .titleBlock,
+  .searchWrap,
+  .sectionHeader {
+    display: none;
+  }
+
+  .header {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .brand {
+    justify-content: center;
+  }
+
+  .brandIcon,
+  .collapseButton,
+  .newIconButton {
+    height: 44px;
+    min-width: 44px;
+    width: 44px;
+  }
+
+  .scrollArea,
+  .list,
+  .newConversation {
+    width: 100%;
+  }
+
+  .conversationCard {
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0;
+  }
+
+  .cardIcon {
+    background: transparent;
+    color: #4f5c66;
+    height: 44px;
+    width: 44px;
+  }
+
+  .cardBody,
+  .messageCount,
+  .emptyText {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .stack {
+    padding: 12px 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversationCard,
+  .collapseButton,
+  .newButton,
+  .newIconButton {
+    transition: none;
+  }
+
+  .conversationCard:hover {
+    transform: none;
+  }
+}

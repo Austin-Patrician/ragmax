@@ -14,6 +14,39 @@ class IndexJobStatus(StrEnum):
     FAILED = "failed"
 
 
+class IndexPipelineStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class IndexStageStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class IndexingStage(StrEnum):
+    SOURCE = "source"
+    PARSE_BLOCKS = "parse_blocks"
+    ANALYZE_PROFILE = "analyze_profile"
+    CHUNK_NODES = "chunk_nodes"
+    QUALITY_ENRICH = "quality_enrich"
+    VECTORIZE = "vectorize"
+
+
+INDEXING_STAGE_ORDER: tuple[IndexingStage, ...] = (
+    IndexingStage.SOURCE,
+    IndexingStage.PARSE_BLOCKS,
+    IndexingStage.ANALYZE_PROFILE,
+    IndexingStage.CHUNK_NODES,
+    IndexingStage.QUALITY_ENRICH,
+    IndexingStage.VECTORIZE,
+)
+
+
 @dataclass(frozen=True)
 class SourceRecord:
     source_id: str
@@ -73,4 +106,54 @@ class IndexBlockRecord:
     parser_version: str | None = None
     content_hash: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class IndexPipelineRunRecord:
+    run_id: str
+    source_id: str
+    status: IndexPipelineStatus
+    requested_profile: str | None = None
+    effective_profile: str | None = None
+    requested_parser: str | None = None
+    effective_parser: str | None = None
+    overrides: dict[str, Any] = field(default_factory=dict)
+    summary: dict[str, Any] = field(default_factory=dict)
+    error_message: str | None = None
+    created_at: datetime | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class IndexStageRunRecord:
+    stage_run_id: str
+    run_id: str
+    stage_name: IndexingStage
+    status: IndexStageStatus
+    sequence_no: int
+    stale: bool = False
+    summary: dict[str, Any] = field(default_factory=dict)
+    error_message: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    duration_ms: float | None = None
+    artifact_count: int = 0
+    created_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class IndexArtifactManifestRecord:
+    artifact_id: str
+    run_id: str
+    stage_run_id: str
+    stage_name: IndexingStage
+    artifact_type: str
+    storage_uri: str
+    payload_format: str
+    content_hash: str
+    size_bytes: int
+    record_count: int
+    preview: dict[str, Any] = field(default_factory=dict)
     created_at: datetime | None = None

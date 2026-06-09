@@ -9,6 +9,20 @@
   --ragmax-warning: #b26b18;
   --ragmax-font: 'IBM Plex Sans', 'Aptos', 'Segoe UI', sans-serif;
   --ragmax-mono: 'IBM Plex Mono', 'Cascadia Mono', Consolas, monospace;
+
+  /* Retrieval page design system colors */
+  --color-primary: #6366F1;
+  --color-primary-hover: #4F46E5;
+  --color-primary-light: #EEF2FF;
+  --color-secondary: #818CF8;
+  --color-cta: #10B981;
+  --color-background: #F9FAFB;
+  --color-surface: #FFFFFF;
+  --color-border: #E5E7EB;
+  --color-text-primary: #111827;
+  --color-text-secondary: #6B7280;
+  --color-text-tertiary: #9CA3AF;
+
   background:
     linear-gradient(135deg, rgba(31, 122, 91, 0.09), transparent 34%),
     linear-gradient(180deg, #fbfbf5 0%, var(--ragmax-bg) 100%);

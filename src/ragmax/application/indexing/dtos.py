@@ -5,7 +5,14 @@ from ragmax.domain.indexing.analysis import IndexingSummary, SourceAnalysis
 from ragmax.domain.indexing.documents import SourceDocument
 from ragmax.domain.indexing.entities import IndexNode
 from ragmax.domain.indexing.profiles import IndexingProfile
-from ragmax.domain.indexing.records import IndexBlockRecord, IndexJobRecord, SourceRecord
+from ragmax.domain.indexing.records import (
+    IndexArtifactManifestRecord,
+    IndexBlockRecord,
+    IndexJobRecord,
+    IndexPipelineRunRecord,
+    IndexStageRunRecord,
+    SourceRecord,
+)
 
 
 @dataclass(frozen=True)
@@ -103,3 +110,31 @@ class DeleteSourceIndexResult:
     source_id: str
     deleted_count: int
     vector_deleted_count: int = 0
+
+
+@dataclass(frozen=True)
+class CreateIndexPipelineRunCommand:
+    source_id: str
+    profile_name: str | None = None
+    parser_name: str | None = None
+    parser_options: dict[str, Any] = field(default_factory=dict)
+    overrides: ProfileOverrides = field(default_factory=ProfileOverrides)
+
+
+@dataclass(frozen=True)
+class IndexPipelineRunResult:
+    run: IndexPipelineRunRecord
+    stages: tuple[IndexStageRunRecord, ...]
+
+
+@dataclass(frozen=True)
+class IndexArtifactDataResult:
+    manifest: IndexArtifactManifestRecord
+    data: dict[str, Any] | list[dict[str, Any]]
+    has_more: bool = False
+
+
+@dataclass(frozen=True)
+class StageArtifactsResult:
+    stage_run: IndexStageRunRecord | None
+    manifests: tuple[IndexArtifactManifestRecord, ...]

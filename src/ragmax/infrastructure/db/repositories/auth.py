@@ -15,9 +15,11 @@ from ragmax.infrastructure.db.models import (
 )
 
 _ROUTE_PERMISSION_ORDER = {
-    "/indexing": 0,
-    "/retrieval": 1,
-    "/evaluation": 2,
+    "/files": 0,
+    "/datasets": 1,
+    "/indexing": 2,
+    "/retrieval": 3,
+    "/evaluation": 4,
 }
 
 

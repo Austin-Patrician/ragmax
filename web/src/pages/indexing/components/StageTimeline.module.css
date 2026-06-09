@@ -1,0 +1,205 @@
+.container {
+  background: #fbfcfd;
+  border-color: #dfe5ea;
+  box-shadow: 0 10px 28px rgba(31, 42, 55, 0.05);
+  flex: 0 0 auto;
+}
+
+.timeline {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.stageWrapper {
+  min-width: 0;
+}
+
+.connector {
+  display: none;
+}
+
+.stageCard {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 68px;
+  padding: 10px;
+  border: 1px solid #e0e5ea;
+  border-radius: 8px;
+  background: var(--mantine-color-white);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.stageCard:hover {
+  background: #f7fafc;
+  border-color: #cbd5df;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 16px rgba(31, 42, 55, 0.08);
+}
+
+.stageCard:active {
+  transform: translateY(0);
+}
+
+.stageCardSelected {
+  background: #ecf8f5;
+  border-color: #38ad99;
+  box-shadow: inset 0 -3px 0 #38ad99;
+}
+
+.stageCardSelected:hover {
+  background: #e4f5f1;
+  border-color: #258f7d;
+}
+
+.stageSuccess {
+  border-color: #a9dbc8;
+  background: #f1fbf6;
+}
+
+.stageSuccess:hover {
+  border-color: #72bea1;
+  background: #e7f7ee;
+}
+
+.stageError {
+  border-color: #f5b5b5;
+  background: #fff6f6;
+}
+
+.stageError:hover {
+  border-color: #ea8585;
+  background: #feecec;
+}
+
+.stageRunning {
+  border-color: #e9c46a;
+  background: #fffaf0;
+}
+
+.stageRunning:hover {
+  border-color: #d8a62e;
+  background: #fff4da;
+}
+
+.stageIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #eef2f5;
+  color: var(--mantine-color-gray-7);
+}
+
+.stageCardSelected .stageIcon {
+  background: #cceee7;
+  color: #176f62;
+}
+
+.stageBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.statusIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.iconSuccess {
+  color: var(--mantine-color-green-6);
+}
+
+.iconError {
+  color: var(--mantine-color-red-6);
+}
+
+.iconRunning {
+  color: var(--mantine-color-yellow-6);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.iconPending {
+  color: var(--mantine-color-gray-4);
+}
+
+.iconDefault {
+  color: var(--mantine-color-gray-3);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (max-width: 768px) {
+  .timeline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stageCard {
+    min-height: 64px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .connector {
+    background: var(--mantine-color-dark-4);
+  }
+
+  .stageCard {
+    background: var(--mantine-color-dark-6);
+    border-color: var(--mantine-color-dark-4);
+  }
+
+  .stageCard:hover {
+    background: var(--mantine-color-dark-5);
+    border-color: var(--mantine-color-dark-3);
+  }
+
+  .stageCardSelected {
+    background: var(--mantine-color-dark-5);
+    border-color: var(--mantine-color-blue-7);
+  }
+
+  .stageCardSelected:hover {
+    background: var(--mantine-color-dark-4);
+  }
+
+  .stageIcon {
+    background: var(--mantine-color-dark-5);
+    color: var(--mantine-color-gray-5);
+  }
+
+  .stageCardSelected .stageIcon {
+    background: var(--mantine-color-dark-4);
+    color: var(--mantine-color-blue-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stageCard {
+    transition: none;
+  }
+
+  .stageCard:hover {
+    transform: none;
+  }
+
+  .iconRunning {
+    animation: none;
+  }
+}

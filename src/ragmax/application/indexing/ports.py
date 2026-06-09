@@ -5,7 +5,15 @@ from typing import Any, Protocol, Self
 from ragmax.application.indexing.dtos import SourceInput
 from ragmax.domain.indexing.documents import SourceDocument
 from ragmax.domain.indexing.entities import IndexNode
-from ragmax.domain.indexing.records import IndexBlockRecord, IndexJobRecord, SourceRecord
+from ragmax.domain.indexing.records import (
+    IndexArtifactManifestRecord,
+    IndexBlockRecord,
+    IndexingStage,
+    IndexJobRecord,
+    IndexPipelineRunRecord,
+    IndexStageRunRecord,
+    SourceRecord,
+)
 
 
 @dataclass(frozen=True)
@@ -71,6 +79,80 @@ class IndexJobRepository(Protocol):
         ...
 
 
+class IndexPipelineRunRepository(Protocol):
+    async def create(self, run: IndexPipelineRunRecord) -> IndexPipelineRunRecord:
+        ...
+
+    async def get(self, run_id: str) -> IndexPipelineRunRecord | None:
+        ...
+
+    async def list_by_source(
+        self,
+        source_id: str,
+        *,
+        limit: int,
+    ) -> tuple[IndexPipelineRunRecord, ...]:
+        ...
+
+    async def update(self, run: IndexPipelineRunRecord) -> IndexPipelineRunRecord:
+        ...
+
+
+class IndexStageRunRepository(Protocol):
+    async def create(self, stage_run: IndexStageRunRecord) -> IndexStageRunRecord:
+        ...
+
+    async def get(self, stage_run_id: str) -> IndexStageRunRecord | None:
+        ...
+
+    async def list_by_run(self, run_id: str) -> tuple[IndexStageRunRecord, ...]:
+        ...
+
+    async def latest_for_stage(
+        self,
+        *,
+        run_id: str,
+        stage_name: IndexingStage,
+    ) -> IndexStageRunRecord | None:
+        ...
+
+    async def update(self, stage_run: IndexStageRunRecord) -> IndexStageRunRecord:
+        ...
+
+    async def mark_stale_after(
+        self,
+        *,
+        run_id: str,
+        stage_name: IndexingStage,
+    ) -> int:
+        ...
+
+
+class IndexArtifactManifestRepository(Protocol):
+    async def create_many(
+        self,
+        manifests: Sequence[IndexArtifactManifestRecord],
+    ) -> tuple[IndexArtifactManifestRecord, ...]:
+        ...
+
+    async def get(self, artifact_id: str) -> IndexArtifactManifestRecord | None:
+        ...
+
+    async def list_by_stage_run(
+        self,
+        stage_run_id: str,
+    ) -> tuple[IndexArtifactManifestRecord, ...]:
+        ...
+
+    async def list_latest_by_run_stage(
+        self,
+        *,
+        run_id: str,
+        stage_name: IndexingStage,
+    ) -> tuple[IndexArtifactManifestRecord, ...]:
+        ...
+
+
 class IndexNodeRepository(Protocol):
     async def replace_for_source(
         self,
@@ -114,6 +196,9 @@ class IndexBlockRepository(Protocol):
 class IndexingUnitOfWork(Protocol):
     sources: SourceRepository
     jobs: IndexJobRepository
+    pipeline_runs: IndexPipelineRunRepository
+    stage_runs: IndexStageRunRepository
+    artifact_manifests: IndexArtifactManifestRepository
     blocks: IndexBlockRepository
     nodes: IndexNodeRepository
 

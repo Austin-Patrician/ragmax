@@ -15,10 +15,15 @@ from ragmax.api.v1.indexing import (
     IndexingPreviewResponse,
     IndexingProfileResponse,
     IndexingSummaryResponse,
+    IndexPipelineRunDetailResponse,
+    IndexPipelineRunResponse,
     ProfileOverridesPayload,
     build_indexing_preview_response,
+    build_pipeline_run_detail_response,
+    build_pipeline_run_response,
 )
 from ragmax.application.indexing.dtos import (
+    CreateIndexPipelineRunCommand,
     CreateSourceCommand,
     PreviewIndexingCommand,
     ProfileOverrides,
@@ -143,6 +148,44 @@ class DeleteSourceIndexResponse(BaseModel):
     vector_deleted_count: int
 
 
+@router.get("", response_model=list[SourceResponse])
+async def list_sources(
+    service: Annotated[IndexingService, Depends(get_indexing_service)],
+    limit: int = 100,
+    offset: int = 0,
+) -> list[SourceResponse]:
+    try:
+        sources = await service.list_sources(limit=limit, offset=offset)
+    except InvalidRequestError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return [_source_response(source) for source in sources]
+
+
+@router.get("/{source_id}", response_model=SourceResponse)
+async def get_source(
+    source_id: str,
+    service: Annotated[IndexingService, Depends(get_indexing_service)],
+) -> SourceResponse:
+    try:
+        source = await service.get_source(source_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return _source_response(source)
+
+
+@router.delete("/{source_id}", status_code=204)
+async def delete_source(
+    source_id: str,
+    service: Annotated[IndexingService, Depends(get_indexing_service)],
+) -> None:
+    try:
+        await service.delete_source(source_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.post("", response_model=SourceResponse, status_code=201)
 async def create_source(
     request: CreateSourceRequest,
@@ -233,6 +276,47 @@ async def preview_source_indexing(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return build_indexing_preview_response(result)
+
+
+@router.post("/{source_id}/index/runs", response_model=IndexPipelineRunDetailResponse)
+async def create_source_indexing_run(
+    source_id: str,
+    request: RunIndexJobRequest,
+    service: Annotated[IndexingService, Depends(get_indexing_service)],
+) -> IndexPipelineRunDetailResponse:
+    try:
+        result = await service.create_pipeline_run(
+            CreateIndexPipelineRunCommand(
+                source_id=source_id,
+                profile_name=request.profile_name,
+                parser_name=request.parser_name,
+                parser_options=request.parser_options,
+                overrides=ProfileOverrides(
+                    chunk_size=request.overrides.chunk_size,
+                    chunk_overlap=request.overrides.chunk_overlap,
+                    options=request.overrides.options,
+                ),
+            )
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except InvalidRequestError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return build_pipeline_run_detail_response(result)
+
+
+@router.get("/{source_id}/index/runs", response_model=list[IndexPipelineRunResponse])
+async def list_source_indexing_runs(
+    source_id: str,
+    service: Annotated[IndexingService, Depends(get_indexing_service)],
+    limit: int = 20,
+) -> list[IndexPipelineRunResponse]:
+    try:
+        runs = await service.list_pipeline_runs(source_id, limit=limit)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return [build_pipeline_run_response(run) for run in runs]
 
 
 @router.post("/{source_id}/index", response_model=RunIndexJobResponse)

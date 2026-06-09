@@ -249,6 +249,28 @@
   border-color: var(--layout-accent);
 }
 
+.userChip {
+  align-items: center;
+  border-radius: 999px;
+  color: inherit;
+  display: inline-flex;
+  gap: 8px;
+  padding: 3px 4px 3px 12px;
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.userChip:hover {
+  background: #f2f4f5;
+  transform: translateY(-1px);
+}
+
+.userChip:focus-visible {
+  outline: 3px solid rgba(85, 199, 200, 0.32);
+  outline-offset: 2px;
+}
+
 .userName {
   color: #6f7479;
   font-size: 13px;

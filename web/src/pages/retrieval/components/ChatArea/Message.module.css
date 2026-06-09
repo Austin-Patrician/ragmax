@@ -1,0 +1,77 @@
+.userMessageWrapper,
+.aiMessageWrapper {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+}
+
+.userMessageWrapper {
+  justify-content: flex-end;
+}
+
+.aiMessageWrapper {
+  justify-content: flex-start;
+}
+
+.userMessage {
+  background: #17201d;
+  border-radius: 8px 8px 2px 8px;
+  box-shadow: 0 10px 24px rgba(20, 24, 28, 0.12);
+  color: #ffffff;
+  max-width: min(680px, 68%);
+  padding: 12px 15px;
+}
+
+.userTimestamp {
+  color: #d5e0db;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-top: 6px;
+}
+
+.aiMessageStack {
+  flex: 1;
+  max-width: min(760px, 80%);
+  min-width: 0;
+}
+
+.aiMessage {
+  background: #ffffff;
+  border: 1px solid #e0e6eb;
+  border-left: 3px solid #409f93;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(21, 32, 43, 0.06);
+  padding: 15px 16px;
+}
+
+.messageContent {
+  color: #1f2a33;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.aiTimestamp {
+  color: #7d8994;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-top: 10px;
+}
+
+.retrievalStepsContainer {
+  background: #fff9ec;
+  border-color: #f4c56d;
+  border-left: 3px solid #d88a18;
+  border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+  .userMessage,
+  .aiMessageStack {
+    max-width: 88%;
+  }
+
+  .userMessageWrapper,
+  .aiMessageWrapper {
+    gap: 8px;
+  }
+}

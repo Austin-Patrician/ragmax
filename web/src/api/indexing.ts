@@ -1,28 +1,17 @@
 import {
   apiBaseUrl,
-  apiClient,
-  assertApiData,
   authenticatedFetch,
   parseJsonResponse,
 } from './client'
 import type {
-  IndexingArtifactsResponse,
-  IndexingPreviewResponse,
-  RunIndexJobRequest,
-  RunIndexJobResponse,
+  ArtifactData,
+  IndexingStageName,
+  IndexPipelineRun,
+  IndexPipelineRunDetail,
+  StageArtifacts,
   Source,
   UploadSourceInput,
 } from '@/types'
-
-export async function listIndexingProfiles() {
-  const { data, error } = await apiClient.GET('/api/v1/indexing/profiles')
-  return assertApiData(data, error)
-}
-
-export async function listSourceParsers() {
-  const { data, error } = await apiClient.GET('/api/v1/indexing/parsers')
-  return assertApiData(data, error)
-}
 
 export async function uploadSource(input: UploadSourceInput): Promise<Source> {
   const formData = new FormData()
@@ -44,31 +33,47 @@ export async function uploadSource(input: UploadSourceInput): Promise<Source> {
   return parseJsonResponse<Source>(response)
 }
 
-export async function previewSourceIndexing(input: {
+export async function listIndexPipelineRuns(input: {
   sourceId: string
-  request: RunIndexJobRequest
-}): Promise<IndexingPreviewResponse> {
-  const { data, error } = await apiClient.POST('/api/v1/sources/{source_id}/index/preview', {
-    params: { path: { source_id: input.sourceId } },
-    body: input.request,
-  })
-  return assertApiData(data, error) as IndexingPreviewResponse
+  limit?: number
+}): Promise<IndexPipelineRun[]> {
+  const limit = input.limit ?? 20
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/api/v1/sources/${encodeURIComponent(input.sourceId)}/index/runs?limit=${limit}`,
+  )
+  return parseJsonResponse<IndexPipelineRun[]>(response)
 }
 
-export async function runSourceIndexing(input: {
-  sourceId: string
-  request: RunIndexJobRequest
-}): Promise<RunIndexJobResponse> {
-  const { data, error } = await apiClient.POST('/api/v1/sources/{source_id}/index', {
-    params: { path: { source_id: input.sourceId } },
-    body: input.request,
-  })
-  return assertApiData(data, error)
+export async function getIndexPipelineRun(runId: string): Promise<IndexPipelineRunDetail> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/api/v1/indexing/runs/${encodeURIComponent(runId)}`,
+  )
+  return parseJsonResponse<IndexPipelineRunDetail>(response)
 }
 
-export async function getIndexingArtifacts(jobId: string): Promise<IndexingArtifactsResponse> {
-  const { data, error } = await apiClient.GET('/api/v1/indexing/jobs/{job_id}/artifacts', {
-    params: { path: { job_id: jobId } },
-  })
-  return assertApiData(data, error) as IndexingArtifactsResponse
+export async function getIndexPipelineStageArtifacts(input: {
+  runId: string
+  stageName: IndexingStageName
+}): Promise<StageArtifacts> {
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/api/v1/indexing/runs/${encodeURIComponent(
+      input.runId,
+    )}/stages/${encodeURIComponent(input.stageName)}/artifacts`,
+  )
+  return parseJsonResponse<StageArtifacts>(response)
+}
+
+export async function getIndexArtifactData(input: {
+  artifactId: string
+  offset?: number
+  limit?: number
+}): Promise<ArtifactData> {
+  const offset = input.offset ?? 0
+  const limit = input.limit ?? 50
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/api/v1/indexing/artifacts/${encodeURIComponent(
+      input.artifactId,
+    )}?offset=${offset}&limit=${limit}`,
+  )
+  return parseJsonResponse<ArtifactData>(response)
 }

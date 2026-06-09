@@ -1,0 +1,307 @@
+.panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.bulkBar {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #dedfe3;
+  border-radius: 7px;
+  box-shadow: 0 1px 2px rgba(18, 23, 30, 0.04);
+  display: flex;
+  flex: 0 0 auto;
+  gap: 18px;
+  min-height: 42px;
+  margin-bottom: 14px;
+  padding: 0 20px;
+  width: 100%;
+}
+
+.selectedText {
+  color: #5c6470;
+  font-size: 14px;
+  font-weight: 520;
+  white-space: nowrap;
+}
+
+.selectedText strong {
+  color: #111418;
+  font-weight: 720;
+}
+
+.bulkDivider {
+  align-self: stretch;
+  background: #e5e6ea;
+  width: 1px;
+}
+
+.bulkDeleteButton {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #ff4d4f;
+  border-radius: 6px;
+  color: #ef3434;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 650;
+  gap: 7px;
+  height: 32px;
+  justify-content: center;
+  min-width: 92px;
+  padding: 0 14px;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease;
+}
+
+.bulkDeleteButton:hover {
+  background: #fff5f5;
+  border-color: #f03535;
+  box-shadow: 0 6px 14px rgba(239, 52, 52, 0.12);
+  color: #dc2626;
+}
+
+.bulkDeleteButton:focus-visible {
+  outline: 3px solid rgba(239, 52, 52, 0.18);
+  outline-offset: 2px;
+}
+
+.bulkDeleteButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.tableFrame {
+  background: #f2f2f3;
+  border-radius: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  min-width: 980px;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid #d9d9da;
+  color: #111418;
+  font-size: 14px;
+  height: 56px;
+  padding: 0 22px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table th {
+  color: #6a7079;
+  font-weight: 520;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody tr {
+  transition: background 140ms ease;
+}
+
+.table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.table tbody tr.selectedRow {
+  background: #e5e5e6;
+}
+
+.table tbody tr.selectedRow:hover {
+  background: #dedfe1;
+}
+
+.checkboxColumn {
+  padding-left: 22px !important;
+  padding-right: 8px !important;
+  width: 56px;
+}
+
+.checkbox {
+  accent-color: #111214;
+  cursor: pointer;
+  height: 15px;
+  width: 15px;
+}
+
+.checkbox:focus-visible {
+  outline: 3px solid rgba(17, 18, 20, 0.14);
+  outline-offset: 2px;
+}
+
+.sortButton {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0;
+}
+
+.sortButton:hover,
+.sortButtonActive {
+  color: #111418;
+}
+
+.nameCell {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nameCell span:last-child {
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileIcon,
+.folderIcon {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  width: 18px;
+}
+
+.fileIcon {
+  color: #ff6262;
+}
+
+.folderIcon {
+  color: #f4bd45;
+}
+
+.actionCell {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.iconButton,
+.pageArrow,
+.pageSize {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #626a74;
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 32px;
+  min-width: 32px;
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease;
+}
+
+.iconButton:hover,
+.pageArrow:hover,
+.pageSize:hover {
+  background: #ffffff;
+  color: #111418;
+}
+
+.iconButton:disabled,
+.pageArrow:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.stateCell {
+  color: #737982 !important;
+  height: 180px !important;
+  text-align: center !important;
+}
+
+.pagination {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 14px;
+  justify-content: flex-end;
+  min-height: 58px;
+  padding-top: 14px;
+}
+
+.total {
+  color: #111418;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.pageNumber {
+  align-items: center;
+  background: #f2f2f3;
+  border-radius: 6px;
+  color: #89909a;
+  display: inline-flex;
+  font-size: 14px;
+  height: 34px;
+  justify-content: center;
+  min-width: 34px;
+}
+
+.pageSize {
+  background: #f2f2f3;
+  color: #6d747d;
+  font-size: 14px;
+  gap: 4px;
+  padding: 0 14px;
+}
+
+@media (max-width: 768px) {
+  .bulkBar {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    min-height: 48px;
+    padding: 8px 12px;
+  }
+
+  .tableFrame {
+    border-radius: 8px;
+  }
+
+  .pagination {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .table tbody tr,
+  .bulkDeleteButton,
+  .iconButton,
+  .pageArrow,
+  .pageSize {
+    transition: none;
+  }
+}

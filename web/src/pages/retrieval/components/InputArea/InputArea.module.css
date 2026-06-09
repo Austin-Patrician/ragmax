@@ -1,0 +1,95 @@
+.container {
+  background:
+    linear-gradient(180deg, rgba(247, 249, 251, 0.1) 0%, rgba(247, 249, 251, 0.98) 38%),
+    #f7f9fb;
+  flex: 0 0 auto;
+  padding: 0 clamp(16px, 2.5vw, 32px) clamp(16px, 2.5vw, 28px);
+}
+
+.composer {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid #dce2e8;
+  border-radius: 8px;
+  box-shadow:
+    0 16px 34px rgba(21, 32, 43, 0.1),
+    0 1px 0 rgba(255, 255, 255, 0.82) inset;
+  margin: 0 auto;
+  max-width: 980px;
+  overflow: hidden;
+}
+
+.inputBar {
+  border-bottom: 1px solid #e6ebef;
+  padding: 12px;
+}
+
+.iconButton,
+.sendButton {
+  border-radius: 8px;
+  flex: 0 0 auto;
+  height: 44px;
+  min-width: 44px;
+  width: 44px;
+}
+
+.iconButton {
+  color: #65717d;
+}
+
+.iconButton:hover {
+  background: #eef3f5;
+  color: #1e2b34;
+}
+
+.sendButton {
+  background: #151719;
+  color: #ffffff;
+}
+
+.sendButton:hover {
+  background: #050607;
+}
+
+.sendButton:disabled {
+  background: #d7dde3;
+  color: #7d8994;
+  cursor: not-allowed;
+}
+
+.textarea {
+  flex: 1;
+  min-width: 0;
+}
+
+.textareaInput {
+  background: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  color: #19232c;
+  font-size: 15px;
+  line-height: 1.55;
+  min-height: 44px;
+  padding: 10px 12px;
+}
+
+.textareaInput:focus {
+  box-shadow: 0 0 0 3px rgba(64, 159, 147, 0.16);
+}
+
+.actionGroup {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  .container {
+    padding: 0 10px 12px;
+  }
+
+  .inputBar {
+    padding: 10px;
+  }
+
+  .iconButton {
+    display: none;
+  }
+}
