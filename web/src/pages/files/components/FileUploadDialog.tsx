@@ -3,7 +3,8 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { FileText, FolderUp, UploadCloud } from 'lucide-react'
-import { uploadSource } from '@/api/indexing'
+import { runSourceIndexing, uploadSource } from '@/api/indexing'
+import { queryKeys } from '@/hooks/queryKeys'
 import { sourceKeys } from '@/hooks/useSources'
 import classes from './FileUploadDialog.module.css'
 
@@ -26,7 +27,8 @@ export function FileUploadDialog({ isOpen, onClose }: FileUploadDialogProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [uploadedCount, setUploadedCount] = useState(0)
+  const [captureArtifacts, setCaptureArtifacts] = useState(false)
+  const [processedCount, setProcessedCount] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
@@ -39,7 +41,8 @@ export function FileUploadDialog({ isOpen, onClose }: FileUploadDialogProps) {
     setSelectedFiles([])
     setIsDragging(false)
     setUploading(false)
-    setUploadedCount(0)
+    setCaptureArtifacts(false)
+    setProcessedCount(0)
     setErrorMessage('')
   }
 
@@ -53,7 +56,7 @@ export function FileUploadDialog({ isOpen, onClose }: FileUploadDialogProps) {
     setMode(nextMode)
     setSelectedFiles([])
     setErrorMessage('')
-    setUploadedCount(0)
+    setProcessedCount(0)
   }
 
   const selectFromInput = (
@@ -92,25 +95,30 @@ export function FileUploadDialog({ isOpen, onClose }: FileUploadDialogProps) {
     }
 
     setUploading(true)
-    setUploadedCount(0)
+    setProcessedCount(0)
     setErrorMessage('')
     let uploadSucceeded = false
     try {
       for (const file of selectedFiles) {
-        await uploadSource({
+        const source = await uploadSource({
           file,
           notebookId: 'default',
           metadata: JSON.stringify(uploadMetadata(file, mode)),
         })
-        setUploadedCount((current) => current + 1)
+        await runSourceIndexing({
+          sourceId: source.source_id,
+          capture_artifacts: captureArtifacts,
+        })
+        setProcessedCount((current) => current + 1)
       }
       await queryClient.invalidateQueries({ queryKey: sourceKeys.all })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.indexing.all })
       uploadSucceeded = true
       resetDialog()
       onClose()
     } catch (error) {
       console.error('Upload failed:', error)
-      setErrorMessage(t('files.upload_error', 'Failed to upload file'))
+      setErrorMessage(t('files.upload_or_index_error', 'Failed to upload or index file'))
     } finally {
       if (!uploadSucceeded) {
         setUploading(false)
@@ -214,10 +222,26 @@ export function FileUploadDialog({ isOpen, onClose }: FileUploadDialogProps) {
             type="file"
           />
 
+          <label className={classes.artifactToggle}>
+            <input
+              checked={captureArtifacts}
+              disabled={uploading}
+              onChange={(event) => setCaptureArtifacts(event.currentTarget.checked)}
+              type="checkbox"
+            />
+            <span className={classes.switchTrack} aria-hidden="true">
+              <span className={classes.switchThumb} />
+            </span>
+            <span className={classes.artifactToggleText}>
+              {t('files.generate_indexing_artifacts', 'Generate indexing artifacts')}
+            </span>
+          </label>
+
           {errorMessage ? <p className={classes.error}>{errorMessage}</p> : null}
           {uploading ? (
             <p className={classes.progress}>
-              Uploading {uploadedCount}/{selectedFiles.length}
+              {t('files.uploading_and_indexing', 'Uploading and indexing...')}{' '}
+              {processedCount}/{selectedFiles.length}
             </p>
           ) : null}
         </div>
@@ -229,7 +253,9 @@ export function FileUploadDialog({ isOpen, onClose }: FileUploadDialogProps) {
             onClick={handleSubmit}
             type="button"
           >
-            {uploading ? t('files.uploading', 'Uploading...') : t('common.save', 'Save')}
+            {uploading
+              ? t('files.uploading_and_indexing', 'Uploading and indexing...')
+              : t('common.save', 'Save')}
           </button>
         </footer>
       </section>

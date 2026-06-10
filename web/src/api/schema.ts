@@ -599,14 +599,12 @@ export interface components {
         RetrievalAnswerRequest: {
             /** Query */
             query: string;
-            /** Notebook Id */
-            notebook_id: string;
+            /** Dataset Id */
+            dataset_id: string;
             /** Retrieval Top K */
             retrieval_top_k?: number | null;
             /** Rerank Top K */
             rerank_top_k?: number | null;
-            /** Source Ids */
-            source_ids?: string[];
             /** Content Types */
             content_types?: string[];
             /** Score Threshold */
@@ -616,8 +614,8 @@ export interface components {
         RetrievalAnswerResponse: {
             /** Query */
             query: string;
-            /** Notebook Id */
-            notebook_id: string;
+            /** Dataset Id */
+            dataset_id: string;
             /** Answer */
             answer: string;
             /** Retrieval Count */
@@ -690,15 +688,13 @@ export interface components {
         RetrievalSearchRequest: {
             /** Query */
             query: string;
-            /** Notebook Id */
-            notebook_id: string;
+            /** Dataset Id */
+            dataset_id: string;
             /**
              * Top K
              * @default 8
              */
             top_k: number;
-            /** Source Ids */
-            source_ids?: string[];
             /** Content Types */
             content_types?: string[];
             /** Score Threshold */
@@ -708,8 +704,8 @@ export interface components {
         RetrievalSearchResponse: {
             /** Query */
             query: string;
-            /** Notebook Id */
-            notebook_id: string;
+            /** Dataset Id */
+            dataset_id: string;
             /** Count */
             count: number;
             /** Results */
@@ -754,6 +750,8 @@ export interface components {
                 [key: string]: unknown;
             };
             overrides?: components["schemas"]["ProfileOverridesPayload"];
+            /** Capture Artifacts */
+            capture_artifacts?: boolean;
         };
         /** RunIndexJobResponse */
         RunIndexJobResponse: {
@@ -765,6 +763,12 @@ export interface components {
             summary: components["schemas"]["IndexingSummaryResponse"];
             /** Node Count */
             node_count: number;
+            /** Pipeline Run Id */
+            pipeline_run_id?: string | null;
+            /** Artifact Capture Status */
+            artifact_capture_status?: string;
+            /** Artifact Capture Error */
+            artifact_capture_error?: string | null;
         };
         /** SourceAnalysisResponse */
         SourceAnalysisResponse: {

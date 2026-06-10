@@ -76,6 +76,141 @@
   word-wrap: break-word;
 }
 
+.markdownContent {
+  color: var(--color-text-primary);
+  font-size: 15px;
+  line-height: 1.65;
+  margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+
+.markdownContent > :first-child {
+  margin-top: 0;
+}
+
+.markdownContent > :last-child {
+  margin-bottom: 0;
+}
+
+.markdownContent p {
+  margin: 0 0 10px;
+}
+
+.markdownContent h1,
+.markdownContent h2,
+.markdownContent h3,
+.markdownContent h4 {
+  color: var(--color-text-primary);
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 16px 0 8px;
+}
+
+.markdownContent h1 {
+  font-size: 20px;
+}
+
+.markdownContent h2 {
+  font-size: 18px;
+}
+
+.markdownContent h3 {
+  font-size: 16px;
+}
+
+.markdownContent h4 {
+  font-size: 15px;
+}
+
+.markdownContent ul,
+.markdownContent ol {
+  margin: 8px 0 12px;
+  padding-left: 22px;
+}
+
+.markdownContent li {
+  margin: 4px 0;
+}
+
+.markdownContent li > p {
+  margin: 4px 0;
+}
+
+.markdownContent strong {
+  font-weight: 700;
+}
+
+.markdownContent blockquote {
+  border-left: 3px solid var(--color-primary);
+  color: var(--color-text-secondary);
+  margin: 12px 0;
+  padding: 2px 0 2px 12px;
+}
+
+.markdownContent code {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-primary);
+  font-family: 'Fira Code', Consolas, monospace;
+  font-size: 0.92em;
+  padding: 1px 4px;
+}
+
+.markdownContent pre {
+  background: #111827;
+  border-radius: 8px;
+  color: #f8fafc;
+  margin: 12px 0;
+  overflow-x: auto;
+  padding: 12px 14px;
+}
+
+.markdownContent pre code {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  display: block;
+  padding: 0;
+  white-space: pre;
+}
+
+.markdownContent a {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdownContent table {
+  border-collapse: collapse;
+  display: block;
+  margin: 12px 0;
+  max-width: 100%;
+  overflow-x: auto;
+  width: max-content;
+}
+
+.markdownContent th,
+.markdownContent td {
+  border: 1px solid var(--color-border);
+  padding: 7px 9px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdownContent th {
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.markdownContent hr {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin: 14px 0;
+}
+
 .messageTime {
   font-size: 11px;
   color: var(--color-text-tertiary);

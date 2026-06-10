@@ -34,8 +34,7 @@ async def test_qdrant_writer_creates_sparse_index_and_bm25_search_reads_payload_
     vector_hits = await QdrantVectorSearcher(client=client).search(
         collection_names=("ragmax_text_nodes",),
         query_vector=[0.2, 0.3, 0.4],
-        notebook_id="notebook-1",
-        source_ids=(),
+        source_ids=("source-1",),
         content_types=(),
         limit=5,
     )
@@ -45,8 +44,7 @@ async def test_qdrant_writer_creates_sparse_index_and_bm25_search_reads_payload_
     hits = await searcher.search(
         query="退款 approval",
         collection_names=("ragmax_text_nodes",),
-        notebook_id="notebook-1",
-        source_ids=(),
+        source_ids=("source-1",),
         content_types=(),
         limit=5,
     )

@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from typing import Annotated
 
 from fastapi import Depends
@@ -74,14 +74,15 @@ async def get_indexing_service(
     return create_indexing_service(settings=settings)
 
 
-async def get_dataset_service() -> DatasetService:
+async def get_dataset_service(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> AsyncIterator[DatasetService]:
     """Dependency for DatasetService with per-request database session."""
-    async with SessionLocal() as session:
-        yield DatasetService(
-            dataset_repo=SQLAlchemyDatasetRepository(session),
-            dataset_file_repo=SQLAlchemyDatasetFileRepository(session),
-        )
-        await session.commit()
+    yield DatasetService(
+        dataset_repo=SQLAlchemyDatasetRepository(session),
+        dataset_file_repo=SQLAlchemyDatasetFileRepository(session),
+    )
+    await session.commit()
 
 
 async def get_retrieval_service(

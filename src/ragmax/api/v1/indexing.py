@@ -448,6 +448,34 @@ async def get_indexing_artifacts(
     )
 
 
+@router.get("/runs/latest", response_model=list[IndexPipelineRunResponse])
+async def get_latest_indexing_pipeline_runs(
+    service: Annotated[IndexingService, Depends(get_indexing_service)],
+    limit: int = 100,
+) -> list[IndexPipelineRunResponse]:
+    try:
+        runs = await service.list_latest_pipeline_runs(limit=limit)
+    except InvalidRequestError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return [build_pipeline_run_response(run) for run in runs]
+
+
+@router.post("/runs/{run_id}/execute", response_model=IndexPipelineRunDetailResponse)
+async def execute_indexing_pipeline_run(
+    run_id: str,
+    service: Annotated[IndexingService, Depends(get_indexing_service)],
+) -> IndexPipelineRunDetailResponse:
+    try:
+        result = await service.execute_pipeline_run(run_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except InvalidRequestError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (ConfigurationError, ExternalServiceError) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return build_pipeline_run_detail_response(result)
+
+
 @router.get("/runs/{run_id}", response_model=IndexPipelineRunDetailResponse)
 async def get_indexing_pipeline_run(
     run_id: str,
@@ -458,6 +486,26 @@ async def get_indexing_pipeline_run(
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return build_pipeline_run_detail_response(result)
+
+
+@router.post(
+    "/runs/{run_id}/stages/{stage_name}/execute",
+    response_model=StageArtifactsResponseModel,
+)
+async def execute_indexing_pipeline_stage(
+    run_id: str,
+    stage_name: str,
+    service: Annotated[IndexingService, Depends(get_indexing_service)],
+) -> StageArtifactsResponseModel:
+    try:
+        result = await service.execute_pipeline_stage(run_id, stage_name)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except InvalidRequestError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (ConfigurationError, ExternalServiceError) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return build_stage_artifacts_response(result)
 
 
 @router.get(

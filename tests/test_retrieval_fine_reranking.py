@@ -29,13 +29,12 @@ class FakeVectorSearcher:
         *,
         collection_names: Sequence[str],
         query_vector: Sequence[float],
-        notebook_id: str,
         source_ids: Sequence[str],
         content_types: Sequence[str],
         limit: int,
         score_threshold: float | None = None,
     ) -> tuple[VectorSearchHit, ...]:
-        del collection_names, query_vector, notebook_id, source_ids, content_types
+        del collection_names, query_vector, source_ids, content_types
         del score_threshold
         return self.hits[:limit]
 
@@ -50,12 +49,11 @@ class FakeBM25Searcher:
         *,
         query: str,
         collection_names: Sequence[str],
-        notebook_id: str,
         source_ids: Sequence[str],
         content_types: Sequence[str],
         limit: int,
     ) -> tuple[BM25SearchHit, ...]:
-        del query, collection_names, notebook_id, source_ids, content_types
+        del query, collection_names, source_ids, content_types
         self.calls.append(limit)
         return self.hits[:limit]
 
@@ -170,7 +168,13 @@ async def test_answer_uses_coarse_then_fine_reranking_pipeline() -> None:
         max_context_items=2,
     )
 
-    result = await service.answer(AnswerCommand(query="approval", notebook_id="notebook-1"))
+    result = await service.answer(
+        AnswerCommand(
+            query="approval",
+            dataset_id="dataset-1",
+            source_ids=("source-1",),
+        )
+    )
 
     assert coarse.calls == [(("node-2", "node-1"), 2)]
     assert fine.calls == [(("node-2", "node-1"), 1)]
@@ -226,7 +230,12 @@ async def test_search_uses_configured_bm25_candidate_limit() -> None:
     )
 
     result = await service.search(
-        RetrievalCommand(query="refund", notebook_id="notebook-1", top_k=2)
+        RetrievalCommand(
+            query="refund",
+            dataset_id="dataset-1",
+            source_ids=("source-1",),
+            top_k=2,
+        )
     )
 
     assert bm25_searcher.calls == [7]

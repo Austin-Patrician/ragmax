@@ -166,6 +166,15 @@ class IndexingService:
         async with self._unit_of_work_factory() as uow:
             return await uow.pipeline_runs.list_by_source(source_id, limit=limit)
 
+    async def list_latest_pipeline_runs(
+        self,
+        *,
+        limit: int = 100,
+    ) -> tuple[IndexPipelineRunRecord, ...]:
+        self._ensure_persistence_configured()
+        async with self._unit_of_work_factory() as uow:
+            return await uow.pipeline_runs.list_latest(limit=limit)
+
     async def get_pipeline_run(self, run_id: str) -> IndexPipelineRunResult:
         self._ensure_persistence_configured()
         async with self._unit_of_work_factory() as uow:
@@ -194,6 +203,33 @@ class IndexingService:
                 return StageArtifactsResult(stage_run=None, manifests=())
             manifests = await uow.artifact_manifests.list_by_stage_run(stage_run.stage_run_id)
             return StageArtifactsResult(stage_run=stage_run, manifests=manifests)
+
+    async def execute_pipeline_run(self, run_id: str) -> IndexPipelineRunResult:
+        self._ensure_persistence_configured()
+        self._ensure_artifact_storage_configured()
+        run = await self._get_pipeline_run_or_raise(run_id)
+        source = await self._get_source_or_raise(run.source_id)
+        run = await self._execute_all_pipeline_stages(run=run, source=source)
+        async with self._unit_of_work_factory() as uow:
+            stages = await uow.stage_runs.list_by_run(run.run_id)
+        return IndexPipelineRunResult(run=run, stages=stages)
+
+    async def execute_pipeline_stage(
+        self,
+        run_id: str,
+        stage_name: str,
+    ) -> StageArtifactsResult:
+        self._ensure_persistence_configured()
+        self._ensure_artifact_storage_configured()
+        run = await self._get_pipeline_run_or_raise(run_id)
+        source = await self._get_source_or_raise(run.source_id)
+        stage = _parse_stage(stage_name)
+        _, stage_run, manifests = await self._execute_pipeline_stage_once(
+            run=run,
+            source=source,
+            stage=stage,
+        )
+        return StageArtifactsResult(stage_run=stage_run, manifests=tuple(manifests))
 
     async def get_artifact_data(
         self,
@@ -336,6 +372,48 @@ class IndexingService:
             summary=succeeded_summary,
         )
 
+    async def run_index_job_with_artifacts(
+        self,
+        command: RunIndexJobCommand,
+    ) -> RunIndexJobResult:
+        self._ensure_persistence_configured()
+
+        source = await self._get_source_or_raise(command.source_id)
+        run: IndexPipelineRunRecord | None = None
+        try:
+            self._ensure_artifact_storage_configured()
+            pipeline = await self.create_pipeline_run(
+                CreateIndexPipelineRunCommand(
+                    source_id=command.source_id,
+                    profile_name=command.profile_name,
+                    parser_name=command.parser_name,
+                    parser_options=command.parser_options,
+                    overrides=command.overrides,
+                )
+            )
+            run = pipeline.run
+            run = await self._execute_all_pipeline_stages(run=run, source=source)
+            result = await self._run_index_result_from_pipeline(run=run, source=source)
+            return replace(
+                result,
+                pipeline_run=run,
+                artifact_capture_status="succeeded",
+                artifact_capture_error=None,
+            )
+        except Exception as exc:
+            failed_run = (
+                await self._mark_pipeline_run_failed(run.run_id, str(exc))
+                if run is not None
+                else None
+            )
+            fallback = await self.run_index_job(command)
+            return replace(
+                fallback,
+                pipeline_run=failed_run,
+                artifact_capture_status="failed",
+                artifact_capture_error=str(exc),
+            )
+
     async def get_index_job(self, job_id: str) -> IndexJobRecord:
         self._ensure_persistence_configured()
 
@@ -436,6 +514,86 @@ class IndexingService:
             )
             await uow.commit()
             return stage_run
+
+    async def _execute_all_pipeline_stages(
+        self,
+        *,
+        run: IndexPipelineRunRecord,
+        source: SourceRecord,
+    ) -> IndexPipelineRunRecord:
+        current_run = run
+        for stage in INDEXING_STAGE_ORDER:
+            current_run, _, _ = await self._execute_pipeline_stage_once(
+                run=current_run,
+                source=source,
+                stage=stage,
+            )
+
+        return current_run
+
+    async def _execute_pipeline_stage_once(
+        self,
+        *,
+        run: IndexPipelineRunRecord,
+        source: SourceRecord,
+        stage: IndexingStage,
+    ) -> tuple[
+        IndexPipelineRunRecord,
+        IndexStageRunRecord,
+        tuple[IndexArtifactManifestRecord, ...],
+    ]:
+        await self._ensure_stage_dependencies(run.run_id, stage)
+        stage_run = await self._start_stage_run(run, stage)
+        started_at = perf_counter()
+        try:
+            artifacts, summary, run_updates = await self._execute_pipeline_stage_payload(
+                run=run,
+                source=source,
+                stage_run=stage_run,
+                stage=stage,
+            )
+            manifests = tuple(
+                _manifest_from_stored_artifact(
+                    stored=stored,
+                    run_id=run.run_id,
+                    stage_run_id=stage_run.stage_run_id,
+                    stage=stage,
+                    artifact_type=artifact_type,
+                )
+                for artifact_type, stored in artifacts
+            )
+            success_updates = dict(run_updates)
+            success_updates.setdefault("summary", summary)
+
+            async with self._unit_of_work_factory() as uow:
+                await uow.artifact_manifests.create_many(manifests)
+                stage_run = await uow.stage_runs.update(
+                    replace(
+                        stage_run,
+                        status=IndexStageStatus.SUCCEEDED,
+                        summary=summary,
+                        error_message=None,
+                        finished_at=datetime.now(UTC),
+                        duration_ms=_elapsed_ms(started_at),
+                        artifact_count=len(manifests),
+                    )
+                )
+                latest_run = await uow.pipeline_runs.get(run.run_id)
+                if latest_run is None:
+                    raise NotFoundError(f"Index pipeline run not found: {run.run_id}")
+                updated_run = await uow.pipeline_runs.update(
+                    _run_with_stage_success(latest_run, stage, success_updates)
+                )
+                await uow.commit()
+                return updated_run, stage_run, manifests
+        except Exception as exc:
+            await self._mark_pipeline_stage_failed(
+                run_id=run.run_id,
+                stage_run=stage_run,
+                error_message=str(exc),
+                duration_ms=_elapsed_ms(started_at),
+            )
+            raise
 
     async def _execute_pipeline_stage_payload(
         self,
@@ -809,6 +967,89 @@ class IndexingService:
             )
             await uow.commit()
         return {**summary_dict, "job_id": job.job_id}
+
+    async def _run_index_result_from_pipeline(
+        self,
+        *,
+        run: IndexPipelineRunRecord,
+        source: SourceRecord,
+    ) -> RunIndexJobResult:
+        job_id = run.summary.get("job_id")
+        if not isinstance(job_id, str) or not job_id:
+            raise InvalidRequestError(
+                f"Pipeline run '{run.run_id}' did not persist an index job."
+            )
+
+        async with self._unit_of_work_factory() as uow:
+            job = await uow.jobs.get(job_id)
+            if job is None:
+                raise NotFoundError(f"Index job not found: {job_id}")
+            nodes = await uow.nodes.list_by_job(job_id)
+
+        effective_profile = await self._effective_profile_from_latest_artifacts(run.run_id)
+        return RunIndexJobResult(
+            job=job,
+            source=source,
+            effective_profile=effective_profile,
+            effective_parser=job.effective_parser or run.effective_parser or "",
+            nodes=nodes,
+            summary=_summary_from_payload(job.summary),
+            pipeline_run=run,
+            artifact_capture_status="succeeded",
+            artifact_capture_error=None,
+        )
+
+    async def _mark_pipeline_stage_failed(
+        self,
+        *,
+        run_id: str,
+        stage_run: IndexStageRunRecord,
+        error_message: str,
+        duration_ms: float,
+    ) -> IndexPipelineRunRecord:
+        async with self._unit_of_work_factory() as uow:
+            await uow.stage_runs.update(
+                replace(
+                    stage_run,
+                    status=IndexStageStatus.FAILED,
+                    error_message=error_message,
+                    finished_at=datetime.now(UTC),
+                    duration_ms=duration_ms,
+                )
+            )
+            run = await uow.pipeline_runs.get(run_id)
+            if run is None:
+                raise NotFoundError(f"Index pipeline run not found: {run_id}")
+            failed_run = await uow.pipeline_runs.update(
+                replace(
+                    run,
+                    status=IndexPipelineStatus.FAILED,
+                    error_message=error_message,
+                    finished_at=datetime.now(UTC),
+                )
+            )
+            await uow.commit()
+            return failed_run
+
+    async def _mark_pipeline_run_failed(
+        self,
+        run_id: str,
+        error_message: str,
+    ) -> IndexPipelineRunRecord | None:
+        async with self._unit_of_work_factory() as uow:
+            run = await uow.pipeline_runs.get(run_id)
+            if run is None:
+                return None
+            failed_run = await uow.pipeline_runs.update(
+                replace(
+                    run,
+                    status=IndexPipelineStatus.FAILED,
+                    error_message=error_message,
+                    finished_at=datetime.now(UTC),
+                )
+            )
+            await uow.commit()
+            return failed_run
 
     async def get_source_for_indexing(self, source_id: str) -> SourceInput:
         source = await self._get_source_or_raise(source_id)
@@ -1343,6 +1584,22 @@ def _profile_from_payload(payload: dict[str, Any]) -> IndexingProfile:
         text_collection=payload.get("text_collection") or "ragmax_text_nodes",
         visual_collection=payload.get("visual_collection") or "ragmax_visual_nodes",
         options=dict(payload.get("options") or {}),
+    )
+
+
+def _summary_from_payload(payload: dict[str, Any]) -> IndexingSummary:
+    return IndexingSummary(
+        block_count=int(payload.get("block_count") or 0),
+        node_count=int(payload.get("node_count") or 0),
+        page_count=int(payload.get("page_count") or 0),
+        block_types=dict(payload.get("block_types") or {}),
+        content_types=dict(payload.get("content_types") or {}),
+        modalities=dict(payload.get("modalities") or {}),
+        node_roles=dict(payload.get("node_roles") or {}),
+        vectorized_count=int(payload.get("vectorized_count") or 0),
+        chunk_length_stats=dict(payload.get("chunk_length_stats") or {}),
+        quality=dict(payload.get("quality") or {}),
+        performance=dict(payload.get("performance") or {}),
     )
 
 

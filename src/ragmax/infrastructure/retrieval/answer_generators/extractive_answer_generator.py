@@ -1,7 +1,8 @@
 import re
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 
 from ragmax.application.retrieval.dtos import GeneratedAnswer, RetrievalContextItem
+from ragmax.infrastructure.llm.client import LLMStreamChunk
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
 _TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
@@ -44,6 +45,15 @@ class ExtractiveAnswerGenerator:
                 "used_context_count": len(selected_contexts),
             },
         )
+
+    async def stream_generate(
+        self,
+        *,
+        query: str,
+        contexts: Sequence[RetrievalContextItem],
+    ) -> AsyncIterator[LLMStreamChunk]:
+        generated_answer = await self.generate(query=query, contexts=contexts)
+        yield LLMStreamChunk(content_delta=generated_answer.answer, model=self.name)
 
 
 def _best_snippet(

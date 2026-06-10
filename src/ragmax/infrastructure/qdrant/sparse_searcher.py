@@ -37,7 +37,6 @@ class QdrantSparseBM25Searcher:
         *,
         query: str,
         collection_names: Sequence[str],
-        notebook_id: str,
         source_ids: Sequence[str],
         content_types: Sequence[str],
         limit: int,
@@ -47,7 +46,6 @@ class QdrantSparseBM25Searcher:
         Args:
             query: Search query text
             collection_names: Qdrant collections to search
-            notebook_id: Notebook ID filter
             source_ids: Optional source ID filters
             content_types: Optional content type filters
             limit: Maximum number of results
@@ -59,7 +57,6 @@ class QdrantSparseBM25Searcher:
             self._search_sync,
             query,
             collection_names,
-            notebook_id,
             source_ids,
             content_types,
             limit,
@@ -69,7 +66,6 @@ class QdrantSparseBM25Searcher:
         self,
         query: str,
         collection_names: Sequence[str],
-        notebook_id: str,
         source_ids: Sequence[str],
         content_types: Sequence[str],
         limit: int,
@@ -78,12 +74,7 @@ class QdrantSparseBM25Searcher:
         if not sparse_query.indices:
             return ()
 
-        filter_conditions: list[models.FieldCondition] = [
-            models.FieldCondition(
-                key="notebook_id",
-                match=models.MatchValue(value=notebook_id),
-            )
-        ]
+        filter_conditions: list[models.FieldCondition] = []
 
         if source_ids:
             filter_conditions.append(

@@ -7,7 +7,7 @@ from ragmax.domain.indexing.entities import IndexNode
 @dataclass(frozen=True)
 class RetrievalCommand:
     query: str
-    notebook_id: str
+    dataset_id: str
     top_k: int = 8
     source_ids: tuple[str, ...] = field(default_factory=tuple)
     content_types: tuple[str, ...] = field(default_factory=tuple)
@@ -36,7 +36,7 @@ class RetrievedNode:
 @dataclass(frozen=True)
 class RetrievalResult:
     query: str
-    notebook_id: str
+    dataset_id: str
     results: tuple[RetrievedNode, ...]
 
 
@@ -73,7 +73,7 @@ class RetrievalContextItem:
 @dataclass(frozen=True)
 class AnswerCommand:
     query: str
-    notebook_id: str
+    dataset_id: str
     retrieval_top_k: int | None = None
     rerank_top_k: int | None = None
     source_ids: tuple[str, ...] = field(default_factory=tuple)
@@ -96,9 +96,15 @@ class GeneratedAnswer:
 
 
 @dataclass(frozen=True)
+class AnswerStreamEvent:
+    event: str
+    data: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class AnswerResult:
     query: str
-    notebook_id: str
+    dataset_id: str
     answer: str
     contexts: tuple[RetrievalContextItem, ...]
     citations: tuple[AnswerCitation, ...]

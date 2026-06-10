@@ -117,3 +117,71 @@ def test_indexing_pipeline_rejects_stage_without_dependency(
     )
     assert response.status_code == 400
     assert "requires fresh successful" in response.json()["detail"]
+
+
+def test_source_index_without_artifact_capture_skips_pipeline_run(
+    persisted_client: TestClient,
+) -> None:
+    persisted_client.post(
+        "/api/v1/sources",
+        json={
+            "source_id": "pipeline-source-4",
+            "notebook_id": "notebook-1",
+            "filename": "guide.md",
+            "media_type": "text/markdown",
+            "text": "# Intro\n\nNormal indexing should not create observable artifacts.",
+        },
+    )
+
+    response = persisted_client.post(
+        "/api/v1/sources/pipeline-source-4/index",
+        json={"capture_artifacts": False},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["artifact_capture_status"] == "skipped"
+    assert payload["pipeline_run_id"] is None
+    runs_response = persisted_client.get("/api/v1/sources/pipeline-source-4/index/runs")
+    assert runs_response.status_code == 200
+    assert runs_response.json() == []
+
+
+def test_source_index_with_artifact_capture_generates_pipeline_artifacts(
+    persisted_client: TestClient,
+) -> None:
+    persisted_client.post(
+        "/api/v1/sources",
+        json={
+            "source_id": "pipeline-source-5",
+            "notebook_id": "notebook-1",
+            "filename": "guide.md",
+            "media_type": "text/markdown",
+            "text": "# Intro\n\nCaptured indexing should expose intermediate artifacts.",
+        },
+    )
+
+    response = persisted_client.post(
+        "/api/v1/sources/pipeline-source-5/index",
+        json={"capture_artifacts": True},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["artifact_capture_status"] == "succeeded"
+    assert payload["pipeline_run_id"].startswith("run_")
+    assert payload["node_count"] > 0
+
+    latest_response = persisted_client.get("/api/v1/indexing/runs/latest")
+    assert latest_response.status_code == 200
+    latest_runs = latest_response.json()
+    latest_run = next(
+        run for run in latest_runs if run["source_id"] == "pipeline-source-5"
+    )
+    assert latest_run["status"] == "succeeded"
+
+    artifacts_response = persisted_client.get(
+        f"/api/v1/indexing/runs/{payload['pipeline_run_id']}/stages/parse_blocks/artifacts"
+    )
+    assert artifacts_response.status_code == 200
+    assert artifacts_response.json()["manifests"]

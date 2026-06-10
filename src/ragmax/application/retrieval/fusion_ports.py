@@ -15,7 +15,6 @@ class BM25Searcher(Protocol):
         *,
         query: str,
         collection_names: Sequence[str],
-        notebook_id: str,
         source_ids: Sequence[str],
         content_types: Sequence[str],
         limit: int,

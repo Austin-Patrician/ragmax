@@ -3,6 +3,7 @@ import {
   getIndexArtifactData,
   getIndexPipelineRun,
   getIndexPipelineStageArtifacts,
+  listLatestIndexPipelineRuns,
   listIndexPipelineRuns,
   uploadSource,
 } from '@/api/indexing'
@@ -23,6 +24,13 @@ export function useIndexPipelineRuns(sourceId: string | null) {
       : queryKeys.indexing.pipelineRuns('empty'),
     queryFn: () => listIndexPipelineRuns({ sourceId: sourceId ?? '' }),
     enabled: Boolean(sourceId),
+  })
+}
+
+export function useLatestIndexPipelineRuns(limit = 100) {
+  return useQuery({
+    queryKey: queryKeys.indexing.latestPipelineRuns(),
+    queryFn: () => listLatestIndexPipelineRuns({ limit }),
   })
 }
 

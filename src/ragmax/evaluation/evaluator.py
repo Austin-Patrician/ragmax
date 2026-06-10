@@ -8,7 +8,7 @@ from datetime import datetime
 
 import numpy as np
 
-from ragmax.application.retrieval.service import RetrievalCommand, RetrievalService
+from ragmax.application.retrieval.service import RetrievalService
 from ragmax.evaluation.metrics import Metric
 from ragmax.evaluation.models import (
     EvalResult,
@@ -156,7 +156,7 @@ class RAGEvaluator:
 
         from ragmax.application.retrieval.dtos import AnswerCommand
 
-        command = AnswerCommand(query=question, notebook_id="eval", retrieval_top_k=10)
+        command = AnswerCommand(query=question, dataset_id="eval", retrieval_top_k=10)
 
         response = await self.retrieval_service.answer(command)
 

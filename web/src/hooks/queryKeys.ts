@@ -1,5 +1,7 @@
 export const queryKeys = {
   indexing: {
+    all: ['indexing'] as const,
+    latestPipelineRuns: () => ['indexing', 'runs', 'latest'] as const,
     pipelineRuns: (sourceId: string) => ['indexing', 'sources', sourceId, 'runs'] as const,
     pipelineRun: (runId: string) => ['indexing', 'runs', runId] as const,
     stageArtifacts: (runId: string, stageName: string) =>

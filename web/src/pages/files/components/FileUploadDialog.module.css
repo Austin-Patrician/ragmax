@@ -161,6 +161,61 @@
   display: none;
 }
 
+.artifactToggle {
+  align-items: center;
+  color: #33383e;
+  display: flex;
+  font-size: 13px;
+  font-weight: 650;
+  gap: 10px;
+  margin-top: 14px;
+  user-select: none;
+}
+
+.artifactToggle input {
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 1px;
+}
+
+.switchTrack {
+  align-items: center;
+  background: #d5d9de;
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 2px;
+  transition: background 140ms ease;
+  width: 40px;
+}
+
+.switchThumb {
+  background: #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(25, 28, 33, 0.2);
+  display: block;
+  height: 18px;
+  transform: translateX(0);
+  transition: transform 140ms ease;
+  width: 18px;
+}
+
+.artifactToggle input:checked + .switchTrack {
+  background: #111214;
+}
+
+.artifactToggle input:checked + .switchTrack .switchThumb {
+  transform: translateX(18px);
+}
+
+.artifactToggle input:disabled + .switchTrack,
+.artifactToggle input:disabled ~ .artifactToggleText {
+  opacity: 0.5;
+}
+
 .error,
 .progress {
   font-size: 13px;
@@ -234,7 +289,9 @@
   .tab,
   .tabActive,
   .dropzone,
-  .saveButton {
+  .saveButton,
+  .switchTrack,
+  .switchThumb {
     transition: none;
   }
 

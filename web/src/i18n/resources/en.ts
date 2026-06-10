@@ -117,7 +117,7 @@ export const en = {
     subtitle: 'Inspect indexing artifacts and pipeline execution details',
     fileList: 'Indexed Files',
     fileListSubtitle: 'Files with indexing status',
-    noFiles: 'No files indexed yet.',
+    noFiles: 'No files with indexing artifacts yet.',
     selectFile: 'Select a file to view indexing details.',
     stageTimeline: 'Stage Timeline',
     artifactViewer: 'Artifacts',
@@ -218,6 +218,17 @@ export const en = {
     selectDataset: 'Select dataset',
     sourcesReferenced: 'Sources Referenced',
     retrievalPipeline: 'Retrieval Pipeline',
+    steps: {
+      retrieval: 'Vector Retrieval',
+      retrievalDesc: 'Search relevant documents in vector database',
+      rerank: 'Rerank',
+      rerankDesc: 'Reorder results using Reranker model',
+      generation: 'Answer Generation',
+      generationDesc: 'Generate answer using LLM',
+    },
+    error: {
+      failedToGetAnswer: 'Failed to get answer, please try again',
+    },
   },
   evaluation: {
     title: 'RAG Evaluation',
@@ -309,8 +320,11 @@ export const en = {
       notebook_label: 'Notebook ID',
     },
     uploading: 'Uploading...',
+    uploading_and_indexing: 'Uploading and indexing...',
+    generate_indexing_artifacts: 'Generate indexing artifacts',
     upload: 'Upload',
     upload_error: 'Failed to upload file',
+    upload_or_index_error: 'Failed to upload or index file',
   },
   datasets: {
     title: 'Dataset',

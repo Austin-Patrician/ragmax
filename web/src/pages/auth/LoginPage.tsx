@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
 import { useAuth } from '@/auth/useAuth'
 import { ROUTES } from '@/constants/routes'
+import { APP_NAME } from '@/constants/app'
 import classes from './LoginPage.module.css'
 
 type LoginLocationState = {
@@ -35,13 +36,14 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
   const classNames = {
     screen: classes.screen ?? '',
-    backgroundGrid: classes.backgroundGrid ?? '',
-    brandBar: classes.brandBar ?? '',
-    brandMark: classes.brandMark ?? '',
-    brandText: classes.brandText ?? '',
-    hero: classes.hero ?? '',
-    headline: classes.headline ?? '',
-    formTitle: classes.formTitle ?? '',
+    blobTopLeft: classes.blobTopLeft ?? '',
+    blobBottomRight: classes.blobBottomRight ?? '',
+    gridPattern: classes.gridPattern ?? '',
+    container: classes.container ?? '',
+    header: classes.header ?? '',
+    logoWrapper: classes.logoWrapper ?? '',
+    title: classes.title ?? '',
+    subtitle: classes.subtitle ?? '',
     panel: classes.panel ?? '',
     form: classes.form ?? '',
     field: classes.field ?? '',
@@ -51,7 +53,6 @@ export function LoginPage() {
     submitButton: classes.submitButton ?? '',
     accountHint: classes.accountHint ?? '',
     adminLink: classes.adminLink ?? '',
-    subtitle: classes.subtitle ?? '',
   }
 
   useEffect(() => {
@@ -70,7 +71,7 @@ export function LoginPage() {
         replace: true,
       })
     } catch {
-      setError(t('auth.loginFailed'))
+      setError(t('auth.loginFailed', 'Invalid credentials'))
     } finally {
       setSubmitting(false)
     }
@@ -78,33 +79,63 @@ export function LoginPage() {
 
   return (
     <main className={classNames.screen}>
-      <div className={classNames.backgroundGrid} aria-hidden="true" />
+      <div className={classNames.blobTopLeft} />
+      <div className={classNames.blobBottomRight} />
+      <div className={classNames.gridPattern} />
 
-      <header className={classNames.brandBar}>
-        <div className={classNames.brandMark} aria-hidden="true">
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
-        <Text className={classNames.brandText}>RAGMax</Text>
-      </header>
+      <div className={classNames.container}>
+        <header className={classNames.header}>
+          <div className={classNames.logoWrapper}>
+            <svg
+              width="56"
+              height="56"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <defs>
+                <linearGradient id="login-grad1" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#4c8df8" />
+                  <stop offset="1" stopColor="#55c7c8" />
+                </linearGradient>
+                <linearGradient id="login-grad2" x1="22" y1="2" x2="2" y2="22" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#64c9db" />
+                  <stop offset="1" stopColor="#8b5cf6" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M12 2L2 7L12 12L22 7L12 2Z"
+                fill="url(#login-grad1)"
+              />
+              <path
+                d="M2 17L12 22L22 17"
+                stroke="url(#login-grad2)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M2 12L12 17L22 12"
+                stroke="url(#login-grad1)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <Title order={1} className={classNames.title}>
+            {t('app.brandName', APP_NAME)}
+          </Title>
+          <Text className={classNames.subtitle}>
+            {t('auth.loginSubtitle', 'Empower your intelligence with connected data.')}
+          </Text>
+        </header>
 
-      <section className={classNames.hero}>
-        <Title order={1} className={classNames.headline}>
-          {t('auth.heroTitle')}
-        </Title>
-        <Text className={classNames.subtitle}>{t('auth.loginSubtitle')}</Text>
-
-        <Paper className={classNames.panel} radius="md">
+        <Paper className={classNames.panel} radius="xl" p="xl" withBorder={false}>
           <form className={classNames.form} onSubmit={handleSubmit}>
             <Stack gap="lg">
-              <Title order={2} className={classNames.formTitle}>
-                {t('auth.loginTitle')}
-              </Title>
-
               {error ? (
-                <Alert color="red" variant="light" title={t('auth.loginErrorTitle')} role="alert">
+                <Alert color="red" variant="light" title={t('auth.loginErrorTitle', 'Error')} role="alert">
                   {error}
                 </Alert>
               ) : null}
@@ -114,10 +145,10 @@ export function LoginPage() {
                 label={
                   <>
                     <span className={classNames.required}>*</span>
-                    {t('auth.username')}
+                    {t('auth.username', 'Username')}
                   </>
                 }
-                placeholder={t('auth.usernamePlaceholder')}
+                placeholder={t('auth.usernamePlaceholder', 'Enter your username')}
                 value={username}
                 onChange={(event) => setUsername(event.currentTarget.value)}
                 autoComplete="username"
@@ -128,10 +159,10 @@ export function LoginPage() {
                 label={
                   <>
                     <span className={classNames.required}>*</span>
-                    {t('auth.password')}
+                    {t('auth.password', 'Password')}
                   </>
                 }
-                placeholder={t('auth.passwordPlaceholder')}
+                placeholder={t('auth.passwordPlaceholder', 'Enter your password')}
                 value={password}
                 onChange={(event) => setPassword(event.currentTarget.value)}
                 autoComplete="current-password"
@@ -142,11 +173,15 @@ export function LoginPage() {
                 <Checkbox
                   checked={rememberMe}
                   onChange={(event) => setRememberMe(event.currentTarget.checked)}
-                  label={t('auth.rememberMe')}
+                  label={t('auth.rememberMe', 'Remember me')}
                   color="cyan"
+                  styles={{
+                    label: { color: '#6b7280', fontWeight: 600, fontSize: '14px', cursor: 'pointer' },
+                    input: { cursor: 'pointer' }
+                  }}
                 />
                 <Text component="span" className={classNames.mutedAction}>
-                  {t('auth.forgotPassword')}
+                  {t('auth.forgotPassword', 'Forgot password?')}
                 </Text>
               </Group>
 
@@ -156,17 +191,17 @@ export function LoginPage() {
                 className={classNames.submitButton}
                 loading={submitting}
               >
-                {t('auth.login')}
+                {t('auth.login', 'Sign in to workspace')}
               </Button>
 
               <Text className={classNames.accountHint}>
-                {t('auth.noAccount')}{' '}
-                <span className={classNames.adminLink}>{t('auth.contactAdmin')}</span>
+                {t('auth.noAccount', 'Need an account? ')}
+                <span className={classNames.adminLink}>{t('auth.contactAdmin', 'Contact admin')}</span>
               </Text>
             </Stack>
           </form>
         </Paper>
-      </section>
+      </div>
     </main>
   )
 }

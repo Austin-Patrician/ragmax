@@ -6,6 +6,8 @@ import { ConversationSidebar, type Conversation } from '@/components/retrieval/C
 import { ChatMessageArea, type Message } from '@/components/retrieval/ChatMessageArea'
 import { IntegratedInputBox } from '@/components/retrieval/IntegratedInputBox'
 import { useDatasets } from '@/hooks/useIndexing'
+import { answerRetrievalStream } from '@/api/retrieval'
+import type { Dataset, RetrievalAnswerRequest, RetrievalAnswerResponse } from '@/types'
 
 export function RetrievalPage() {
   const { t } = useTranslation()
@@ -36,7 +38,7 @@ export function RetrievalPage() {
 
   // Convert raw datasets to DatasetWithFiles format
   const datasets =
-    datasetsRaw?.map((ds: any) => ({
+    datasetsRaw?.map((ds: Dataset) => ({
       dataset: ds,
       files: [],
       file_count: 0,
@@ -89,60 +91,74 @@ export function RetrievalPage() {
     setMessages((prev) => [...prev, userMessage])
     setIsLoading(true)
 
-    // TODO: Replace with real API call
-    setTimeout(() => {
-      const retrievalSteps: Array<{
-        name: string
-        description: string
-        duration?: string | undefined
-        data?: unknown
-      }> | undefined = debugModeEnabled
-        ? [
-            {
-              name: '查询理解',
-              description: '分析用户问题，提取关键词和意图',
-              duration: '45ms',
-              data: { query: content, keywords: ['示例', '关键词'] } as unknown,
-            },
-            {
-              name: '向量检索',
-              description: '在向量数据库中搜索相关文档',
-              duration: '120ms',
-              data: { topK: 10, results: 3 } as unknown,
-            },
-            {
-              name: '重排序',
-              description: '使用 Reranker 模型对结果重新排序',
-              duration: '230ms',
-              data: { model: 'bge-reranker-v2-m3' } as unknown,
-            },
-            {
-              name: '上下文组装',
-              description: '将检索结果组装成上下文',
-              duration: '15ms',
-              data: { contextLength: 2048 } as unknown,
-            },
-          ]
-        : undefined
-
-      const assistantMessage: Message = {
-        id: `msg-${Date.now() + 1}`,
-        role: 'assistant',
-        content:
-          '这是一个模拟回复。实际实现中，这里会调用后端 API 进行检索和生成答案。\n\n根据您的问题，我可以提供以下信息...',
-        timestamp: new Date().toLocaleTimeString('zh-CN', {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-        sources: [
-          { id: '1', title: 'Document A.pdf', score: 0.95 },
-          { id: '2', title: 'Document B.pdf', score: 0.87 },
-          { id: '3', title: 'Document C.pdf', score: 0.82 },
-        ],
-        retrievalSteps: retrievalSteps,
+    try {
+      // Build request
+      const request: RetrievalAnswerRequest = {
+        query: content,
+        dataset_id: selectedDataset || '',
+        retrieval_top_k: 10,
+        rerank_top_k: 5,
       }
-      setMessages((prev) => [...prev, assistantMessage])
-      setIsLoading(false)
+
+      const assistantId = `msg-${Date.now() + 1}`
+      const assistantTimestamp = new Date().toLocaleTimeString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+      let streamedAnswer = ''
+
+      const upsertAssistantMessage = (patch: Partial<Message>) => {
+        setMessages((prev) => {
+          const existing = prev.find((message) => message.id === assistantId)
+          if (!existing) {
+            return [
+              ...prev,
+              {
+                id: assistantId,
+                role: 'assistant',
+                content: '',
+                timestamp: assistantTimestamp,
+                ...patch,
+              },
+            ]
+          }
+
+          return prev.map((message) =>
+            message.id === assistantId ? { ...message, ...patch } : message
+          )
+        })
+      }
+
+      const statusTextByStage: Record<string, string> = {
+        accepted: '正在准备...',
+        searching: '正在检索知识库...',
+        reranking: '正在重排相关内容...',
+        generating: '正在生成答案...',
+      }
+
+      await answerRetrievalStream(request, {
+        onStatus: (data) => {
+          const stage = typeof data.stage === 'string' ? data.stage : ''
+          if (!streamedAnswer) {
+            upsertAssistantMessage({
+              content: statusTextByStage[stage] ?? '正在处理...',
+            })
+          }
+        },
+        onAnswerDelta: (text) => {
+          streamedAnswer += text
+          setIsLoading(false)
+          upsertAssistantMessage({ content: streamedAnswer })
+        },
+        onDone: (response) => {
+          setIsLoading(false)
+          upsertAssistantMessage({
+            content: response.answer || streamedAnswer,
+            sources: buildSources(response),
+            retrievalSteps: buildRetrievalSteps(response, request, debugModeEnabled),
+          })
+        },
+      })
 
       // Update conversation last message
       setConversations((prev) =>
@@ -152,7 +168,32 @@ export function RetrievalPage() {
             : c
         )
       )
-    }, 1500)
+    } catch (error) {
+      console.error('Failed to get answer:', error)
+      const errorContent = t('retrieval.error.failedToGetAnswer')
+      setMessages((prev) => {
+        const lastAssistant = [...prev].reverse().find((message) => message.role === 'assistant')
+        if (lastAssistant && !lastAssistant.sources?.length) {
+          return prev.map((message) =>
+            message.id === lastAssistant.id ? { ...message, content: errorContent } : message
+          )
+        }
+        return [
+          ...prev,
+          {
+            id: `msg-${Date.now() + 1}`,
+            role: 'assistant',
+            content: errorContent,
+            timestamp: new Date().toLocaleTimeString('zh-CN', {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          },
+        ]
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -217,4 +258,49 @@ export function RetrievalPage() {
       </div>
     </div>
   )
+}
+
+function buildRetrievalSteps(
+  response: RetrievalAnswerResponse,
+  request: RetrievalAnswerRequest,
+  enabled: boolean,
+): Message['retrievalSteps'] {
+  if (!enabled) {
+    return undefined
+  }
+
+  return [
+    {
+      name: '检索',
+      description: '从知识库中召回相关片段',
+      data: {
+        count: response.retrieval_count,
+        top_k: request.retrieval_top_k,
+      } as unknown,
+    },
+    {
+      name: '重排',
+      description: '对召回结果进行相关性重排',
+      data: {
+        count: response.rerank_count,
+        reranker: response.reranker,
+      } as unknown,
+    },
+    {
+      name: '生成',
+      description: '基于上下文生成最终答案',
+      data: {
+        generator: response.answer_generator,
+        usage: response.metadata?.usage,
+      } as unknown,
+    },
+  ]
+}
+
+function buildSources(response: RetrievalAnswerResponse): Message['sources'] {
+  return response.citations.map((citation) => ({
+    id: citation.citation_id,
+    title: citation.filename || citation.node_id,
+    score: response.contexts.find((ctx) => ctx.citation_id === citation.citation_id)?.score || 0,
+  }))
 }

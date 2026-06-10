@@ -3,6 +3,7 @@ import pytest
 from ragmax.application.retrieval.dtos import RetrievalCitation, RetrievedNode
 from ragmax.core.exceptions import ConfigurationError
 from ragmax.domain.indexing.entities import IndexNode
+from ragmax.infrastructure.retrieval.rerankers import bge_reranker
 from ragmax.infrastructure.retrieval.rerankers.bge_reranker import BGECrossEncoderReranker
 
 
@@ -57,6 +58,34 @@ async def test_bge_reranker_loads_model_on_first_request_only() -> None:
     assert fake_model.predict_calls == 2
     assert [item.retrieved_node.node.node_id for item in first] == ["node-2", "node-1"]
     assert [item.retrieved_node.node.node_id for item in second] == ["node-2"]
+
+
+@pytest.mark.asyncio
+async def test_bge_default_factory_reuses_cached_model_across_instances(monkeypatch) -> None:
+    factory_calls = 0
+    fake_model = FakeCrossEncoder([0.2])
+
+    def load_model(model_name: str, device: str, max_length: int) -> FakeCrossEncoder:
+        nonlocal factory_calls
+        assert model_name == "cached-model"
+        assert device == "cpu"
+        assert max_length == 256
+        factory_calls += 1
+        return fake_model
+
+    bge_reranker._cached_cross_encoder.cache_clear()
+    monkeypatch.setattr(bge_reranker, "_load_cross_encoder", load_model)
+
+    first = BGECrossEncoderReranker(model_name="cached-model", max_length=256)
+    second = BGECrossEncoderReranker(model_name="cached-model", max_length=256)
+    nodes = (_retrieved_node("node-1", "refund policy"),)
+
+    await first.rerank(query="refund", nodes=nodes, top_k=1)
+    await second.rerank(query="refund", nodes=nodes, top_k=1)
+
+    assert factory_calls == 1
+    assert fake_model.predict_calls == 2
+    bge_reranker._cached_cross_encoder.cache_clear()
 
 
 @pytest.mark.asyncio

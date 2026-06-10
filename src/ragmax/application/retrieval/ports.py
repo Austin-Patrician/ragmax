@@ -24,7 +24,6 @@ class VectorSearcher(Protocol):
         *,
         collection_names: Sequence[str],
         query_vector: Sequence[float],
-        notebook_id: str,
         source_ids: Sequence[str],
         content_types: Sequence[str],
         limit: int,

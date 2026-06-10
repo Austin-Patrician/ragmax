@@ -1,9 +1,8 @@
 """LLM client implementations."""
 
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from typing import Protocol
-
-from collections.abc import Sequence
 
 
 @dataclass(frozen=True)
@@ -23,6 +22,13 @@ class LLMResponse:
     model: str
 
 
+@dataclass(frozen=True)
+class LLMStreamChunk:
+    content_delta: str = ""
+    usage: dict[str, int] | None = None
+    model: str | None = None
+
+
 class LLMClient(Protocol):
     """Interface for LLM clients."""
 
@@ -33,6 +39,15 @@ class LLMClient(Protocol):
         max_tokens: int | None = None,
     ) -> LLMResponse:
         """Generate completion from messages."""
+        ...
+
+    async def stream_generate(
+        self,
+        messages: Sequence[LLMMessage],
+        temperature: float = 0.0,
+        max_tokens: int | None = None,
+    ) -> AsyncIterator[LLMStreamChunk]:
+        """Generate completion chunks from messages."""
         ...
 
 
@@ -97,3 +112,39 @@ class OpenAILLMClient:
             usage=usage,
             model=response.model,
         )
+
+    async def stream_generate(
+        self,
+        messages: Sequence[LLMMessage],
+        temperature: float = 0.0,
+        max_tokens: int | None = None,
+    ) -> AsyncIterator[LLMStreamChunk]:
+        """Generate completion using OpenAI streaming API."""
+        stream = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": msg.role, "content": msg.content} for msg in messages],
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+
+        async for chunk in stream:
+            usage = None
+            if getattr(chunk, "usage", None) is not None:
+                usage = {
+                    "prompt_tokens": chunk.usage.prompt_tokens,
+                    "completion_tokens": chunk.usage.completion_tokens,
+                    "total_tokens": chunk.usage.total_tokens,
+                }
+
+            content_delta = ""
+            if chunk.choices:
+                content_delta = chunk.choices[0].delta.content or ""
+
+            if content_delta or usage is not None:
+                yield LLMStreamChunk(
+                    content_delta=content_delta,
+                    usage=usage,
+                    model=chunk.model,
+                )

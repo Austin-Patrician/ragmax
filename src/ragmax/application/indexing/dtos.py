@@ -96,6 +96,9 @@ class RunIndexJobResult:
     effective_parser: str
     nodes: tuple[IndexNode, ...]
     summary: IndexingSummary
+    pipeline_run: IndexPipelineRunRecord | None = None
+    artifact_capture_status: str = "skipped"
+    artifact_capture_error: str | None = None
 
 
 @dataclass(frozen=True)

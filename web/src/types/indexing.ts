@@ -1,9 +1,16 @@
+import type { RunIndexJobRequest } from './api'
+
 export type UploadSourceInput = {
   file: File
   notebookId: string
   sourceId?: string
   metadata?: string
 }
+
+export type RunSourceIndexingInput = {
+  sourceId: string
+  capture_artifacts?: boolean
+} & RunIndexJobRequest
 
 export type Dataset = {
   dataset_id: string

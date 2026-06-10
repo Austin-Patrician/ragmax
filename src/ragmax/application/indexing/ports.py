@@ -94,6 +94,9 @@ class IndexPipelineRunRepository(Protocol):
     ) -> tuple[IndexPipelineRunRecord, ...]:
         ...
 
+    async def list_latest(self, *, limit: int) -> tuple[IndexPipelineRunRecord, ...]:
+        ...
+
     async def update(self, run: IndexPipelineRunRecord) -> IndexPipelineRunRecord:
         ...
 

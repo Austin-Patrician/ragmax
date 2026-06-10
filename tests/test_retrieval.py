@@ -1,4 +1,5 @@
 import asyncio
+import json
 from collections.abc import Iterator, Sequence
 
 import pytest
@@ -14,6 +15,7 @@ from ragmax.api.dependencies import (
     get_source_storage,
 )
 from ragmax.application.retrieval.ports import VectorSearchHit
+from ragmax.core.config import Settings
 from ragmax.infrastructure.db.base import Base, import_models
 from ragmax.infrastructure.db.repositories.indexing import SqlAlchemyIndexingUnitOfWork
 from ragmax.infrastructure.db.session import get_db_session
@@ -32,7 +34,6 @@ class FakeVectorSearcher:
         *,
         collection_names: Sequence[str],
         query_vector: Sequence[float],
-        notebook_id: str,
         source_ids: Sequence[str],
         content_types: Sequence[str],
         limit: int,
@@ -42,7 +43,6 @@ class FakeVectorSearcher:
             {
                 "collection_names": tuple(collection_names),
                 "query_vector": tuple(query_vector),
-                "notebook_id": notebook_id,
                 "source_ids": tuple(source_ids),
                 "content_types": tuple(content_types),
                 "limit": limit,
@@ -85,6 +85,10 @@ def retrieval_client(tmp_path) -> Iterator[tuple[TestClient, FakeVectorSearcher]
         unit_of_work_factory=lambda: SqlAlchemyIndexingUnitOfWork(session_factory),
         embedding_provider=embedding_provider,
         vector_searcher=vector_searcher,
+        settings=Settings(
+            retrieval_reranking_stages="coarse",
+            retrieval_answer_generator="extractive",
+        ),
     )
     app.dependency_overrides[get_source_storage] = lambda: source_storage
 
@@ -99,21 +103,19 @@ def retrieval_client(tmp_path) -> Iterator[tuple[TestClient, FakeVectorSearcher]
 def test_retrieval_disabled_returns_configuration_error(client: TestClient) -> None:
     response = client.post(
         "/api/v1/retrieval/search",
-        json={"query": "cash flow", "notebook_id": "notebook-1"},
+        json={"query": "cash flow", "dataset_id": "missing-dataset"},
     )
 
-    assert response.status_code == 500
-    assert response.json()["detail"] == "Retrieval is not configured."
+    assert response.status_code == 404
 
 
 def test_retrieval_answer_disabled_returns_configuration_error(client: TestClient) -> None:
     response = client.post(
         "/api/v1/retrieval/answer",
-        json={"query": "cash flow", "notebook_id": "notebook-1"},
+        json={"query": "cash flow", "dataset_id": "missing-dataset"},
     )
 
-    assert response.status_code == 500
-    assert response.json()["detail"] == "Retrieval is not configured."
+    assert response.status_code == 404
 
 
 def test_retrieval_search_hydrates_nodes_and_passes_filters(
@@ -134,6 +136,7 @@ def test_retrieval_search_hydrates_nodes_and_passes_filters(
 
     index_response = client.post("/api/v1/sources/source-retrieval-1/index", json={})
     assert index_response.status_code == 200
+    _create_dataset_with_files(client, "dataset-retrieval-1", ("source-retrieval-1",))
     nodes_response = client.get("/api/v1/sources/source-retrieval-1/nodes")
     nodes = nodes_response.json()
     assert nodes
@@ -157,9 +160,8 @@ def test_retrieval_search_hydrates_nodes_and_passes_filters(
         "/api/v1/retrieval/search",
         json={
             "query": "What happened to cash flow?",
-            "notebook_id": "notebook-1",
+            "dataset_id": "dataset-retrieval-1",
             "top_k": 5,
-            "source_ids": ["source-retrieval-1"],
             "content_types": ["paragraph"],
             "score_threshold": 0.2,
         },
@@ -167,6 +169,7 @@ def test_retrieval_search_hydrates_nodes_and_passes_filters(
 
     assert response.status_code == 200
     payload = response.json()
+    assert payload["dataset_id"] == "dataset-retrieval-1"
     assert payload["count"] == 1
     assert payload["results"][0]["node_id"] == nodes[0]["node_id"]
     assert payload["results"][0]["score"] == 0.91
@@ -174,7 +177,6 @@ def test_retrieval_search_hydrates_nodes_and_passes_filters(
 
     call = vector_searcher.calls[-1]
     assert call["collection_names"] == ("ragmax_text_nodes",)
-    assert call["notebook_id"] == "notebook-1"
     assert call["source_ids"] == ("source-retrieval-1",)
     assert call["content_types"] == ("paragraph",)
     assert call["limit"] == 5
@@ -197,6 +199,11 @@ def test_retrieval_answer_reranks_and_returns_context_ready_items(
         source_id="source-answer-unrelated",
         text="Inventory forecasts were updated after the warehouse count changed.",
         filename="inventory.md",
+    )
+    _create_dataset_with_files(
+        client,
+        "dataset-answer",
+        ("source-answer-related", "source-answer-unrelated"),
     )
 
     vector_searcher.hits = (
@@ -224,15 +231,17 @@ def test_retrieval_answer_reranks_and_returns_context_ready_items(
         "/api/v1/retrieval/answer",
         json={
             "query": "refund policy approval",
-            "notebook_id": "notebook-1",
+            "dataset_id": "dataset-answer",
             "retrieval_top_k": 3,
             "rerank_top_k": 2,
         },
     )
 
     assert response.status_code == 200
-    payload = response.json()
+    assert response.headers["content-type"].startswith("text/event-stream")
+    payload = _sse_done_payload(response.text)
     assert payload["retrieval_count"] == 2
+    assert payload["dataset_id"] == "dataset-answer"
     assert payload["rerank_count"] == 2
     assert payload["reranker"] == "score_keyword_reranker:v1"
     assert payload["answer_generator"] == "extractive_answer_generator:v1"
@@ -283,6 +292,7 @@ def test_retrieval_answer_expands_child_hit_to_parent_context(
 
     index_response = client.post("/api/v1/sources/source-parent-context/index", json={})
     assert index_response.status_code == 200
+    _create_dataset_with_files(client, "dataset-parent-context", ("source-parent-context",))
     nodes_response = client.get("/api/v1/sources/source-parent-context/nodes")
     assert nodes_response.status_code == 200
     nodes = nodes_response.json()
@@ -302,17 +312,37 @@ def test_retrieval_answer_expands_child_hit_to_parent_context(
         "/api/v1/retrieval/answer",
         json={
             "query": "refund approval finance",
-            "notebook_id": "notebook-1",
+            "dataset_id": "dataset-parent-context",
         },
     )
 
     assert response.status_code == 200
-    context = response.json()["contexts"][0]
+    context = _sse_done_payload(response.text)["contexts"][0]
     assert context["node_id"] == parent["node_id"]
     assert context["content_type"] == "section"
     assert context["metadata"]["retrieval"]["matched_node_id"] == child["node_id"]
     assert context["metadata"]["retrieval"]["context_node_id"] == parent["node_id"]
     assert context["metadata"]["retrieval"]["expanded_from_parent"] is True
+
+
+def _create_dataset_with_files(
+    client: TestClient,
+    dataset_id: str,
+    source_ids: tuple[str, ...],
+) -> None:
+    create_response = client.post(
+        "/api/v1/datasets",
+        json={
+            "dataset_id": dataset_id,
+            "name": dataset_id,
+        },
+    )
+    assert create_response.status_code == 201
+    add_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/files",
+        json={"source_ids": list(source_ids)},
+    )
+    assert add_response.status_code == 200
 
 
 def _create_indexed_source(
@@ -341,3 +371,26 @@ def _create_indexed_source(
     nodes = nodes_response.json()
     assert nodes
     return nodes[0]
+
+
+def _sse_done_payload(body: str) -> dict[str, object]:
+    events = _sse_events(body)
+    assert any(event == "answer_delta" for event, _ in events)
+    done_events = [data for event, data in events if event == "done"]
+    assert len(done_events) == 1
+    return done_events[0]
+
+
+def _sse_events(body: str) -> list[tuple[str, dict[str, object]]]:
+    events: list[tuple[str, dict[str, object]]] = []
+    for block in body.strip().split("\n\n"):
+        event = "message"
+        data = ""
+        for line in block.splitlines():
+            if line.startswith("event: "):
+                event = line[len("event: ") :]
+            elif line.startswith("data: "):
+                data = line[len("data: ") :]
+        if data:
+            events.append((event, json.loads(data)))
+    return events

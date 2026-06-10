@@ -34,6 +34,7 @@ export function IntegratedInputBox({
   const { t } = useTranslation()
   const [message, setMessage] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const sendDisabled = !message.trim() || isLoading || (Boolean(onDatasetChange) && !selectedDataset)
 
   // Auto-resize textarea
   useEffect(() => {
@@ -44,7 +45,7 @@ export function IntegratedInputBox({
   }, [message])
 
   const handleSubmit = () => {
-    if (message.trim() && !isLoading) {
+    if (!sendDisabled) {
       onSendMessage(message.trim())
       setMessage('')
     }
@@ -75,7 +76,7 @@ export function IntegratedInputBox({
         {/* Send Button */}
         <button
           onClick={handleSubmit}
-          disabled={!message.trim() || isLoading}
+          disabled={sendDisabled}
           className={styles.sendButton}
           aria-label="Send message"
         >

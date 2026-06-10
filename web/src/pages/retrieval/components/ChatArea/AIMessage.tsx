@@ -1,5 +1,7 @@
 import { Alert, Avatar, Group, Loader, Paper, Stack, Text } from '@mantine/core'
 import { IconBrain, IconSparkles } from '@tabler/icons-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { Message, RetrievalMode } from '../../types'
 import SourceReferences from '../SourceReferences/SourceReferences'
 import RetrievalSteps from '../RetrievalSteps/RetrievalSteps'
@@ -47,9 +49,18 @@ export default function AIMessage({ message, mode }: AIMessageProps) {
 
         {/* AI Response - 中间主体内容 */}
         <Paper radius="md" className={classes.aiMessage ?? ''}>
-          <Text size="sm" className={classes.messageContent ?? ''}>
-            {message.content}
-          </Text>
+          <div className={classes.messageContent ?? ''}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: (props) => (
+                  <a {...props} target="_blank" rel="noreferrer" />
+                ),
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
           <Text size="xs" className={classes.aiTimestamp ?? ''}>
             {timestamp}
           </Text>

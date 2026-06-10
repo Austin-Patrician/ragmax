@@ -5,10 +5,10 @@ import { useSources } from '@/hooks/useSources'
 import {
   useIndexArtifactData,
   useIndexPipelineRun,
-  useIndexPipelineRuns,
   useIndexPipelineStageArtifacts,
+  useLatestIndexPipelineRuns,
 } from '@/hooks/useIndexing'
-import type { IndexPipelineRun, IndexingStageName } from '@/types'
+import type { IndexingStageName } from '@/types'
 import { FileListPanel } from './components/FileListPanel'
 import { StageTimeline } from './components/StageTimeline'
 import { ArtifactViewer } from './components/ArtifactViewer'
@@ -24,18 +24,28 @@ export function IndexingPage() {
     isLoading: sourcesLoading,
     error: sourcesError,
   } = useSources({ limit: 100 })
+  const {
+    data: latestRuns,
+    isLoading: runsLoading,
+    error: runsError,
+  } = useLatestIndexPipelineRuns(100)
 
   const filesWithRuns = useMemo(() => {
-    if (!sources) return []
+    if (!sources || !latestRuns) return []
 
-    return sources.map((source) => ({
-      source,
-      latestRun: null as IndexPipelineRun | null,
-    }))
-  }, [sources])
+    const runsBySourceId = new Map(latestRuns.map((run) => [run.source_id, run]))
+    return sources
+      .map((source) => ({
+        source,
+        latestRun: runsBySourceId.get(source.source_id) ?? null,
+      }))
+      .filter((item) => item.latestRun !== null)
+  }, [latestRuns, sources])
 
-  const runsQuery = useIndexPipelineRuns(selectedSourceId)
-  const latestRun = runsQuery.data?.[0] || null
+  const latestRun = useMemo(() => {
+    if (!selectedSourceId || !latestRuns) return null
+    return latestRuns.find((run) => run.source_id === selectedSourceId) ?? null
+  }, [latestRuns, selectedSourceId])
 
   const runDetailQuery = useIndexPipelineRun(latestRun?.run_id || null)
   const runDetail = runDetailQuery.data
@@ -65,8 +75,8 @@ export function IndexingPage() {
             files={filesWithRuns}
             selectedSourceId={selectedSourceId}
             onSelectFile={handleSelectFile}
-            isLoading={sourcesLoading}
-            error={sourcesError}
+            isLoading={sourcesLoading || runsLoading}
+            error={sourcesError || runsError}
           />
         </aside>
 

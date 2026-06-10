@@ -1,6 +1,8 @@
 import { User, Bot, ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import styles from './ChatMessageArea.module.css'
 
 export type Message = {
@@ -70,7 +72,18 @@ function AssistantMessage({
           <Bot size={16} />
         </div>
         <div className={styles.messageContent}>
-          <div className={styles.messageText}>{message.content}</div>
+          <div className={styles.markdownContent}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: (props) => (
+                  <a {...props} target="_blank" rel="noreferrer" />
+                ),
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
 
           {/* Sources */}
           {message.sources && message.sources.length > 0 && (

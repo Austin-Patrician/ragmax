@@ -3,6 +3,8 @@
 import asyncio
 import math
 from collections.abc import Callable, Sequence
+from functools import lru_cache
+from threading import RLock
 from typing import Any
 
 import anyio
@@ -11,6 +13,9 @@ from ragmax.application.retrieval.dtos import RerankedNode, RetrievedNode
 from ragmax.core.exceptions import ConfigurationError, ExternalServiceError
 
 CrossEncoderFactory = Callable[[str, str, int], Any]
+ModelCacheKey = tuple[str, str, int]
+_MODEL_LOCK_GUARD = RLock()
+_MODEL_PREDICT_LOCKS: dict[ModelCacheKey, RLock] = {}
 
 
 class BGECrossEncoderReranker:
@@ -42,6 +47,7 @@ class BGECrossEncoderReranker:
         self.batch_size = batch_size
         self.max_length = max_length
         self._cross_encoder_factory = cross_encoder_factory or _default_cross_encoder_factory
+        self._model_cache_key = (model_name, device, max_length)
         self._model: Any | None = None
         self._model_lock = asyncio.Lock()
 
@@ -124,15 +130,25 @@ class BGECrossEncoderReranker:
             return self._model
 
     def _predict(self, model: Any, pairs: list[tuple[str, str]]) -> list[float]:
-        scores = model.predict(
-            pairs,
-            batch_size=self.batch_size,
-            show_progress_bar=False,
-        )
+        with _predict_lock_for(self._model_cache_key):
+            scores = model.predict(
+                pairs,
+                batch_size=self.batch_size,
+                show_progress_bar=False,
+            )
         return [float(score) for score in scores]
 
 
 def _default_cross_encoder_factory(model_name: str, device: str, max_length: int) -> Any:
+    return _cached_cross_encoder(model_name, device, max_length)
+
+
+@lru_cache(maxsize=4)
+def _cached_cross_encoder(model_name: str, device: str, max_length: int) -> Any:
+    return _load_cross_encoder(model_name, device, max_length)
+
+
+def _load_cross_encoder(model_name: str, device: str, max_length: int) -> Any:
     try:
         from sentence_transformers import CrossEncoder
     except ImportError as exc:
@@ -142,6 +158,15 @@ def _default_cross_encoder_factory(model_name: str, device: str, max_length: int
         ) from exc
 
     return CrossEncoder(model_name, device=device, max_length=max_length)
+
+
+def _predict_lock_for(key: ModelCacheKey) -> RLock:
+    with _MODEL_LOCK_GUARD:
+        lock = _MODEL_PREDICT_LOCKS.get(key)
+        if lock is None:
+            lock = RLock()
+            _MODEL_PREDICT_LOCKS[key] = lock
+        return lock
 
 
 def _sigmoid(value: float) -> float:

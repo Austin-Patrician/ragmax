@@ -176,6 +176,20 @@ class SqlAlchemyIndexPipelineRunRepository:
         )
         return tuple(_pipeline_run_record_from_model(model) for model in result.scalars())
 
+    async def list_latest(self, *, limit: int) -> tuple[IndexPipelineRunRecord, ...]:
+        result = await self._session.execute(
+            select(IndexPipelineRunModel).order_by(IndexPipelineRunModel.created_at.desc())
+        )
+        latest_by_source: dict[str, IndexPipelineRunRecord] = {}
+        for model in result.scalars():
+            run = _pipeline_run_record_from_model(model)
+            if run.source_id in latest_by_source:
+                continue
+            latest_by_source[run.source_id] = run
+            if len(latest_by_source) >= limit:
+                break
+        return tuple(latest_by_source.values())
+
     async def update(self, run: IndexPipelineRunRecord) -> IndexPipelineRunRecord:
         model = await self._session.get(IndexPipelineRunModel, run.run_id)
         if model is None:

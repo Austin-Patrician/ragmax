@@ -8,6 +8,8 @@ import type {
   IndexingStageName,
   IndexPipelineRun,
   IndexPipelineRunDetail,
+  RunIndexJobResponse,
+  RunSourceIndexingInput,
   StageArtifacts,
   Source,
   UploadSourceInput,
@@ -33,6 +35,24 @@ export async function uploadSource(input: UploadSourceInput): Promise<Source> {
   return parseJsonResponse<Source>(response)
 }
 
+export async function runSourceIndexing(
+  input: RunSourceIndexingInput,
+): Promise<RunIndexJobResponse> {
+  const { sourceId, ...request } = input
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/api/v1/sources/${encodeURIComponent(sourceId)}/index`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    },
+  )
+
+  return parseJsonResponse<RunIndexJobResponse>(response)
+}
+
 export async function listIndexPipelineRuns(input: {
   sourceId: string
   limit?: number
@@ -40,6 +60,16 @@ export async function listIndexPipelineRuns(input: {
   const limit = input.limit ?? 20
   const response = await authenticatedFetch(
     `${apiBaseUrl}/api/v1/sources/${encodeURIComponent(input.sourceId)}/index/runs?limit=${limit}`,
+  )
+  return parseJsonResponse<IndexPipelineRun[]>(response)
+}
+
+export async function listLatestIndexPipelineRuns(input?: {
+  limit?: number
+}): Promise<IndexPipelineRun[]> {
+  const limit = input?.limit ?? 100
+  const response = await authenticatedFetch(
+    `${apiBaseUrl}/api/v1/indexing/runs/latest?limit=${limit}`,
   )
   return parseJsonResponse<IndexPipelineRun[]>(response)
 }

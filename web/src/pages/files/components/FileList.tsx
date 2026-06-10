@@ -16,6 +16,9 @@ import classes from './FileList.module.css'
 interface FileListProps {
   sources: Source[]
   isLoading: boolean
+  onDeleteSources?: (sourceIds: string[]) => Promise<void>
+  deleteActionLabel?: string
+  deleteConfirmMessage?: string
 }
 
 type SortKey = 'name' | 'uploadedAt' | 'size'
@@ -23,7 +26,7 @@ type SortDirection = 'asc' | 'desc'
 
 const PAGE_SIZE = 50
 
-export function FileList({ sources, isLoading }: FileListProps) {
+export function FileList({ sources, isLoading, onDeleteSources, deleteActionLabel, deleteConfirmMessage }: FileListProps) {
   const { t } = useTranslation()
   const selectAllRef = useRef<HTMLInputElement>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -91,8 +94,13 @@ export function FileList({ sources, isLoading }: FileListProps) {
   }
 
   const handleDelete = async (sourceId: string) => {
-    if (window.confirm(t('files.confirm_delete', 'Are you sure you want to delete this file?'))) {
-      await deleteSource.mutateAsync(sourceId)
+    const defaultMsg = t('files.confirm_delete', 'Are you sure you want to delete this file?')
+    if (window.confirm(deleteConfirmMessage || defaultMsg)) {
+      if (onDeleteSources) {
+        await onDeleteSources([sourceId])
+      } else {
+        await deleteSource.mutateAsync(sourceId)
+      }
       setSelectedIds((current) => {
         const next = new Set(current)
         next.delete(sourceId)
@@ -103,11 +111,16 @@ export function FileList({ sources, isLoading }: FileListProps) {
 
   const handleDeleteSelected = async () => {
     if (selectedSources.length === 0) return
-    const confirmed = window.confirm(`Delete ${selectedSources.length} selected file(s)?`)
+    const defaultMsg = `Delete ${selectedSources.length} selected file(s)?`
+    const confirmed = window.confirm(deleteConfirmMessage ? `${deleteConfirmMessage} (${selectedSources.length})` : defaultMsg)
     if (!confirmed) return
 
-    for (const source of selectedSources) {
-      await deleteSource.mutateAsync(source.source_id)
+    if (onDeleteSources) {
+      await onDeleteSources(selectedSources.map((s) => s.source_id))
+    } else {
+      for (const source of selectedSources) {
+        await deleteSource.mutateAsync(source.source_id)
+      }
     }
     setSelectedIds(new Set())
   }
@@ -122,12 +135,12 @@ export function FileList({ sources, isLoading }: FileListProps) {
           <span className={classes.bulkDivider} aria-hidden="true" />
           <button
             className={classes.bulkDeleteButton}
-            disabled={deleteSource.isPending}
+            disabled={!onDeleteSources && deleteSource.isPending}
             onClick={handleDeleteSelected}
             type="button"
           >
             <Trash2 size={15} />
-            {deleteSource.isPending ? 'Deleting...' : 'Delete'}
+            {deleteActionLabel || 'Delete'}
           </button>
         </div>
       ) : null}

@@ -47,7 +47,130 @@
 .messageContent {
   color: #1f2a33;
   line-height: 1.65;
-  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.messageContent > :first-child {
+  margin-top: 0;
+}
+
+.messageContent > :last-child {
+  margin-bottom: 0;
+}
+
+.messageContent p {
+  margin: 0 0 10px;
+}
+
+.messageContent h1,
+.messageContent h2,
+.messageContent h3,
+.messageContent h4 {
+  color: #17201d;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 16px 0 8px;
+}
+
+.messageContent h1 {
+  font-size: 20px;
+}
+
+.messageContent h2 {
+  font-size: 18px;
+}
+
+.messageContent h3 {
+  font-size: 16px;
+}
+
+.messageContent h4 {
+  font-size: 15px;
+}
+
+.messageContent ul,
+.messageContent ol {
+  margin: 8px 0 12px;
+  padding-left: 22px;
+}
+
+.messageContent li {
+  margin: 4px 0;
+}
+
+.messageContent li > p {
+  margin: 4px 0;
+}
+
+.messageContent blockquote {
+  border-left: 3px solid #9fcac4;
+  color: #52616d;
+  margin: 12px 0;
+  padding: 2px 0 2px 12px;
+}
+
+.messageContent code {
+  background: #eef3f4;
+  border: 1px solid #d7e2e4;
+  border-radius: 4px;
+  color: #0f2f34;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.92em;
+  padding: 1px 4px;
+}
+
+.messageContent pre {
+  background: #111b20;
+  border-radius: 8px;
+  color: #e9f2f4;
+  margin: 12px 0;
+  overflow-x: auto;
+  padding: 12px 14px;
+}
+
+.messageContent pre code {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  display: block;
+  padding: 0;
+  white-space: pre;
+}
+
+.messageContent a {
+  color: #247a72;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.messageContent table {
+  border-collapse: collapse;
+  display: block;
+  margin: 12px 0;
+  max-width: 100%;
+  overflow-x: auto;
+  width: max-content;
+}
+
+.messageContent th,
+.messageContent td {
+  border: 1px solid #d9e3e7;
+  padding: 7px 9px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.messageContent th {
+  background: #edf5f4;
+  color: #17201d;
+  font-weight: 700;
+}
+
+.messageContent hr {
+  border: 0;
+  border-top: 1px solid #dde6e9;
+  margin: 14px 0;
 }
 
 .aiTimestamp {

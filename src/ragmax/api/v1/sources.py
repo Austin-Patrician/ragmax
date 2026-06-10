@@ -94,6 +94,7 @@ class RunIndexJobRequest(BaseModel):
     parser_name: str | None = None
     parser_options: dict[str, Any] = Field(default_factory=dict)
     overrides: ProfileOverridesPayload = Field(default_factory=ProfileOverridesPayload)
+    capture_artifacts: bool = False
 
 
 class IndexJobResponse(BaseModel):
@@ -140,6 +141,9 @@ class RunIndexJobResponse(BaseModel):
     effective_parser: str
     summary: IndexingSummaryResponse
     node_count: int
+    pipeline_run_id: str | None = None
+    artifact_capture_status: str = "skipped"
+    artifact_capture_error: str | None = None
 
 
 class DeleteSourceIndexResponse(BaseModel):
@@ -326,18 +330,21 @@ async def run_source_indexing(
     service: Annotated[IndexingService, Depends(get_indexing_service)],
 ) -> RunIndexJobResponse:
     try:
-        result = await service.run_index_job(
-            RunIndexJobCommand(
-                source_id=source_id,
-                profile_name=request.profile_name,
-                parser_name=request.parser_name,
-                parser_options=request.parser_options,
-                overrides=ProfileOverrides(
-                    chunk_size=request.overrides.chunk_size,
-                    chunk_overlap=request.overrides.chunk_overlap,
-                    options=request.overrides.options,
-                ),
+        command = RunIndexJobCommand(
+            source_id=source_id,
+            profile_name=request.profile_name,
+            parser_name=request.parser_name,
+            parser_options=request.parser_options,
+            overrides=ProfileOverrides(
+                chunk_size=request.overrides.chunk_size,
+                chunk_overlap=request.overrides.chunk_overlap,
+                options=request.overrides.options,
             )
+        )
+        result = (
+            await service.run_index_job_with_artifacts(command)
+            if request.capture_artifacts
+            else await service.run_index_job(command)
         )
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -355,6 +362,9 @@ async def run_source_indexing(
         effective_parser=result.effective_parser,
         summary=IndexingSummaryResponse.model_validate(asdict(result.summary)),
         node_count=len(result.nodes),
+        pipeline_run_id=result.pipeline_run.run_id if result.pipeline_run else None,
+        artifact_capture_status=result.artifact_capture_status,
+        artifact_capture_error=result.artifact_capture_error,
     )
 
 

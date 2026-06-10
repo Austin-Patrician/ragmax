@@ -1,10 +1,10 @@
 """LLM-based answer generator."""
 
 import re
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 
 from ragmax.application.retrieval.dtos import GeneratedAnswer, RetrievalContextItem
-from ragmax.infrastructure.llm.client import LLMClient, LLMMessage
+from ragmax.infrastructure.llm.client import LLMClient, LLMMessage, LLMStreamChunk
 
 
 class LLMAnswerGenerator:
@@ -86,6 +86,32 @@ class LLMAnswerGenerator:
                 "used_contexts": len(used_context_ids),
             },
         )
+
+    async def stream_generate(
+        self,
+        *,
+        query: str,
+        contexts: Sequence[RetrievalContextItem],
+    ) -> AsyncIterator[LLMStreamChunk]:
+        """Generate answer chunks using LLM streaming."""
+        selected_contexts = tuple(contexts[: self.max_context_items])
+
+        if not selected_contexts:
+            yield LLMStreamChunk(
+                content_delta="I could not find relevant context in this notebook.",
+                model=self.name,
+            )
+            return
+
+        messages = [
+            LLMMessage(role="system", content=self._build_system_prompt()),
+            LLMMessage(role="user", content=self._build_user_prompt(query, selected_contexts)),
+        ]
+
+        async for chunk in self.llm.stream_generate(
+            messages, temperature=self.temperature, max_tokens=self.max_tokens
+        ):
+            yield chunk
 
     def _build_system_prompt(self) -> str:
         """Build system prompt for answer generation."""

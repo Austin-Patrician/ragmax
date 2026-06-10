@@ -118,7 +118,7 @@ export const zhCN = {
     subtitle: '检查索引产物和流水线执行详情',
     fileList: '已索引文件',
     fileListSubtitle: '文件及索引状态',
-    noFiles: '还没有已索引的文件。',
+    noFiles: '暂无带索引观测产物的文件。',
     selectFile: '选择一个文件查看索引详情。',
     stageTimeline: '阶段流程',
     artifactViewer: '产物',
@@ -219,6 +219,17 @@ export const zhCN = {
     selectDataset: '选择数据集',
     sourcesReferenced: '引用来源',
     retrievalPipeline: '检索流程',
+    steps: {
+      retrieval: '向量检索',
+      retrievalDesc: '在向量数据库中搜索相关文档',
+      rerank: '重排序',
+      rerankDesc: '使用 Reranker 模型对结果重新排序',
+      generation: '答案生成',
+      generationDesc: '使用 LLM 生成答案',
+    },
+    error: {
+      failedToGetAnswer: '获取答案失败，请稍后重试',
+    },
   },
   evaluation: {
     title: 'RAG 评估',
@@ -310,8 +321,11 @@ export const zhCN = {
       notebook_label: '笔记本 ID',
     },
     uploading: '上传中...',
+    uploading_and_indexing: '上传并索引中...',
+    generate_indexing_artifacts: '生成索引观测产物',
     upload: '上传',
     upload_error: '文件上传失败',
+    upload_or_index_error: '文件上传或索引失败',
   },
   datasets: {
     title: '数据集',

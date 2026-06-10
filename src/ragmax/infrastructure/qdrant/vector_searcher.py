@@ -16,7 +16,6 @@ class QdrantVectorSearcher:
         *,
         collection_names: Sequence[str],
         query_vector: Sequence[float],
-        notebook_id: str,
         source_ids: Sequence[str],
         content_types: Sequence[str],
         limit: int,
@@ -26,7 +25,6 @@ class QdrantVectorSearcher:
             self._search_sync,
             collection_names,
             query_vector,
-            notebook_id,
             source_ids,
             content_types,
             limit,
@@ -37,7 +35,6 @@ class QdrantVectorSearcher:
         self,
         collection_names: Sequence[str],
         query_vector: Sequence[float],
-        notebook_id: str,
         source_ids: Sequence[str],
         content_types: Sequence[str],
         limit: int,
@@ -45,7 +42,6 @@ class QdrantVectorSearcher:
     ) -> tuple[VectorSearchHit, ...]:
         hits: list[VectorSearchHit] = []
         query_filter = _query_filter(
-            notebook_id=notebook_id,
             source_ids=source_ids,
             content_types=content_types,
         )
@@ -68,16 +64,10 @@ class QdrantVectorSearcher:
 
 def _query_filter(
     *,
-    notebook_id: str,
     source_ids: Sequence[str],
     content_types: Sequence[str],
 ) -> models.Filter:
-    must: list[models.Condition] = [
-        models.FieldCondition(
-            key="notebook_id",
-            match=models.MatchValue(value=notebook_id),
-        )
-    ]
+    must: list[models.Condition] = []
     if source_ids:
         must.append(
             models.FieldCondition(

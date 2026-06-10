@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { useDataset, useDeleteDataset, useAddFilesToDataset, useRemoveFileFromDataset } from '@/hooks/useDatasets'
+import { Search, Plus, ArrowLeft } from 'lucide-react'
+import { useDataset, useAddFilesToDataset, useRemoveFileFromDataset } from '@/hooks/useDatasets'
 import { useSources } from '@/hooks/useSources'
+import { FileList } from '../files/components/FileList'
+import classes from '../files/FilesPage.module.css'
 
 export default function DatasetDetailPage() {
   const { t } = useTranslation()
@@ -10,11 +13,35 @@ export default function DatasetDetailPage() {
   const navigate = useNavigate()
   const { data: datasetWithFiles, isLoading } = useDataset(id)
   const { data: allSources } = useSources()
-  const deleteDataset = useDeleteDataset()
   const addFiles = useAddFilesToDataset()
   const removeFile = useRemoveFileFromDataset()
+  
   const [isAddingFiles, setIsAddingFiles] = useState(false)
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const datasetSources = useMemo(() => {
+    if (!datasetWithFiles || !allSources) return []
+    const fileSourceIds = new Set(datasetWithFiles.files.map((f) => f.source_id))
+    let sources = allSources.filter((s) => fileSourceIds.has(s.source_id))
+    
+    const query = searchQuery.trim().toLowerCase()
+    if (query) {
+      sources = sources.filter((source) => {
+        const filename = source.filename?.toLowerCase() ?? ''
+        const mediaType = source.media_type?.toLowerCase() ?? ''
+        const sourceId = source.source_id.toLowerCase()
+        return filename.includes(query) || mediaType.includes(query) || sourceId.includes(query)
+      })
+    }
+    return sources
+  }, [datasetWithFiles, allSources, searchQuery])
+
+  const availableSources = useMemo(() => {
+    if (!datasetWithFiles || !allSources) return []
+    const fileSourceIds = new Set(datasetWithFiles.files.map((f) => f.source_id))
+    return allSources.filter((s) => !fileSourceIds.has(s.source_id))
+  }, [datasetWithFiles, allSources])
 
   if (isLoading) {
     return (
@@ -32,136 +59,65 @@ export default function DatasetDetailPage() {
     )
   }
 
-  const { dataset, files } = datasetWithFiles
-  const fileSourceIds = new Set(files.map((f) => f.source_id))
-  const availableSources = allSources?.filter((s) => !fileSourceIds.has(s.source_id)) || []
-
-  const handleDelete = async () => {
-    if (window.confirm(t('datasets.confirm_delete', 'Are you sure you want to delete this dataset?'))) {
-      await deleteDataset.mutateAsync(dataset.dataset_id)
-      navigate('/datasets')
-    }
-  }
-
   const handleAddFiles = async () => {
     if (selectedSourceIds.length === 0) return
-    await addFiles.mutateAsync({ datasetId: dataset.dataset_id, input: { source_ids: selectedSourceIds } })
+    await addFiles.mutateAsync({ datasetId: datasetWithFiles.dataset.dataset_id, input: { source_ids: selectedSourceIds } })
     setSelectedSourceIds([])
     setIsAddingFiles(false)
   }
 
-  const handleRemoveFile = async (sourceId: string) => {
-    if (window.confirm(t('datasets.confirm_remove_file', 'Remove this file from the dataset?'))) {
-      await removeFile.mutateAsync({ datasetId: dataset.dataset_id, sourceId })
+  const handleRemoveFiles = async (sourceIds: string[]) => {
+    for (const sourceId of sourceIds) {
+      await removeFile.mutateAsync({ datasetId: datasetWithFiles.dataset.dataset_id, sourceId })
     }
   }
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ marginBottom: '32px' }}>
-        <button
-          onClick={() => navigate('/datasets')}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#1f7a5b',
-            fontSize: '14px',
-            cursor: 'pointer',
-            marginBottom: '16px',
-          }}
-        >
-          ← {t('common.back', 'Back to Datasets')}
-        </button>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <h1 style={{ fontSize: '32px', fontWeight: 600 }}>{dataset.name}</h1>
-            {dataset.description && <p style={{ color: '#666', marginTop: '8px' }}>{dataset.description}</p>}
-          </div>
+    <div className={classes.page}>
+      <div className={classes.toolbar}>
+        <nav className={classes.segmentedNav} aria-label="Dataset navigation">
           <button
-            onClick={handleDelete}
-            style={{
-              background: '#fee',
-              color: '#c33',
-              border: '1px solid #fcc',
-              borderRadius: '12px',
-              padding: '10px 20px',
-              fontSize: '14px',
-              cursor: 'pointer',
-            }}
+            className={classes.segmentedItem}
+            onClick={() => navigate('/datasets')}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', border: 'none', background: 'transparent', cursor: 'pointer' }}
           >
-            {t('common.delete', 'Delete')}
+            <ArrowLeft size={16} />
+            {t('common.back', 'Back')}
+          </button>
+          <span className={classes.segmentedItemActive}>
+            {datasetWithFiles.dataset.name}
+          </span>
+        </nav>
+
+        <div className={classes.toolbarActions}>
+          <label className={classes.searchBox}>
+            <Search size={16} aria-hidden="true" />
+            <input
+              type="search"
+              placeholder={t('files.search_placeholder', 'Search')}
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.currentTarget.value)}
+            />
+          </label>
+          <button
+            onClick={() => setIsAddingFiles(true)}
+            className={classes.uploadButton}
+            type="button"
+          >
+            <Plus size={16} />
+            {t('datasets.add_files', 'Add files')}
           </button>
         </div>
       </div>
 
-      {/* Files Section */}
-      <div style={{ background: '#fffffb', borderRadius: '18px', padding: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 600 }}>
-            {t('datasets.files_title', 'Files')} ({files.length})
-          </h2>
-          <button
-            onClick={() => setIsAddingFiles(true)}
-            style={{
-              background: '#1f7a5b',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '10px 20px',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            + {t('datasets.add_files', 'Add Files')}
-          </button>
-        </div>
-
-        {files.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📄</div>
-            <p>{t('datasets.no_files', 'No files in this dataset yet')}</p>
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gap: '12px' }}>
-            {files.map((file) => (
-              <div
-                key={file.id}
-                style={{
-                  background: '#f9f9f9',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 500 }}>📄 Source ID: {file.source_id}</div>
-                  <div style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
-                    {t('datasets.added_at', 'Added')}: {new Date(file.added_at || '').toLocaleString()}
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleRemoveFile(file.source_id)}
-                  style={{
-                    background: '#fee',
-                    color: '#c33',
-                    border: '1px solid #fcc',
-                    borderRadius: '8px',
-                    padding: '6px 12px',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {t('common.remove', 'Remove')}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className={classes.listArea}>
+        <FileList 
+          sources={datasetSources} 
+          isLoading={isLoading} 
+          onDeleteSources={handleRemoveFiles}
+          deleteActionLabel={t('common.remove', 'Remove')}
+          deleteConfirmMessage={t('datasets.confirm_remove_file', 'Remove this file from the dataset?')}
+        />
       </div>
 
       {/* Add Files Dialog */}
@@ -216,11 +172,11 @@ export default function DatasetDetailPage() {
                       type="checkbox"
                       checked={selectedSourceIds.includes(source.source_id)}
                       onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedSourceIds([...selectedSourceIds, source.source_id])
-                        } else {
-                          setSelectedSourceIds(selectedSourceIds.filter((id) => id !== source.source_id))
-                        }
+                         if (e.target.checked) {
+                           setSelectedSourceIds([...selectedSourceIds, source.source_id])
+                         } else {
+                           setSelectedSourceIds(selectedSourceIds.filter((id) => id !== source.source_id))
+                         }
                       }}
                       style={{ marginRight: '12px' }}
                     />
