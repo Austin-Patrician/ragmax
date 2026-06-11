@@ -1,7 +1,6 @@
 .container {
-  background: #ffffff;
-  border-color: #dfe5ea;
-  box-shadow: 0 12px 30px rgba(31, 42, 55, 0.07);
+  background: transparent;
+  border: none;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -10,16 +9,16 @@
 }
 
 .header {
-  margin-bottom: var(--mantine-spacing-md);
-  padding-bottom: var(--mantine-spacing-sm);
-  border-bottom: 1px solid var(--mantine-color-gray-2);
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
   flex-shrink: 0;
 }
 
 .content {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  height: 0; /* crucial for flex inner scrolling */
 }
 
 .jsonBlock {

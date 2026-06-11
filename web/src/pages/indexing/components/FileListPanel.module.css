@@ -1,17 +1,16 @@
 .container {
-  background: #fbfcfd;
-  border-color: #dfe5ea;
-  box-shadow: 0 10px 28px rgba(31, 42, 55, 0.06);
+  background: transparent;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  padding: 20px 0;
 }
 
 .header {
-  border-bottom: 1px solid #e6ebef;
-  margin-bottom: var(--mantine-spacing-md);
-  padding-bottom: var(--mantine-spacing-sm);
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+  margin-bottom: 16px;
+  padding: 0 20px 16px;
   flex-shrink: 0;
 }
 
@@ -19,15 +18,16 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  padding: 0 16px;
 }
 
 .fileCard {
   display: flex;
-  gap: var(--mantine-spacing-sm);
-  padding: var(--mantine-spacing-sm);
-  border: 1px solid #e0e5ea;
-  border-radius: 8px;
-  background: var(--mantine-color-white);
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
   cursor: pointer;
   transition: all 0.2s ease;
   width: 100%;
@@ -35,25 +35,22 @@
 }
 
 .fileCard:hover {
-  background: #f7fafc;
-  border-color: #cbd5df;
-  transform: translateY(-1px);
-  box-shadow: 0 5px 16px rgba(31, 42, 55, 0.08);
+  background: #f1f5f9;
 }
 
 .fileCard:active {
-  transform: translateY(0);
+  transform: scale(0.98);
 }
 
 .fileCardSelected {
-  background: #ecf8f5;
-  border-color: #38ad99;
-  box-shadow: inset 3px 0 0 #38ad99;
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
 }
 
 .fileCardSelected:hover {
-  background: #e4f5f1;
-  border-color: #258f7d;
+  background: #ffffff;
+  border-color: #cbd5e1;
 }
 
 .fileIcon {
@@ -63,37 +60,51 @@
   flex-shrink: 0;
   width: 40px;
   height: 40px;
-  border-radius: 8px;
-  background: #eef2f5;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #64748b;
+  transition: all 0.2s ease;
 }
 
 .fileCardSelected .fileIcon {
-  background: #cceee7;
+  background: linear-gradient(135deg, rgba(76, 141, 248, 0.1) 0%, rgba(85, 199, 200, 0.1) 100%);
+  color: #4c8df8;
 }
 
 .fileBody {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .fileName {
   word-break: break-all;
+  font-weight: 600;
+  font-size: 14px;
+  color: #334155;
+  margin-bottom: 4px;
+}
+
+.fileCardSelected .fileName {
+  color: #0f172a;
 }
 
 .iconSuccess {
-  color: var(--mantine-color-green-6);
+  color: #10b981;
 }
 
 .iconError {
-  color: var(--mantine-color-red-6);
+  color: #ef4444;
 }
 
 .iconPending {
-  color: var(--mantine-color-yellow-6);
+  color: #f59e0b;
 }
 
 .iconDefault {
-  color: var(--mantine-color-gray-6);
+  color: #94a3b8;
 }
 
 @media (prefers-color-scheme: dark) {

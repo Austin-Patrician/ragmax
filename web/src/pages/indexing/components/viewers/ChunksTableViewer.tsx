@@ -1,8 +1,8 @@
-import { Badge, Button, Group, Paper, SimpleGrid, Stack, Table, Text, ScrollArea } from '@mantine/core'
-import { useState } from 'react'
+import { Badge, Box, Group, Paper, Stack, Text, TextInput, Loader, Center } from '@mantine/core'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Layers, AlignLeft, Search, Quote } from 'lucide-react'
 import type { ArtifactData } from '@/types'
-import classes from './TableViewer.module.css'
 
 type ChunksTableViewerProps = {
   data: ArtifactData
@@ -12,127 +12,159 @@ const PAGE_SIZE = 50
 
 export function ChunksTableViewer({ data }: ChunksTableViewerProps) {
   const { t } = useTranslation()
-  const [page, setPage] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const sentinelRef = useRef<HTMLDivElement>(null)
 
   const chunks = Array.isArray(data.data) ? data.data : []
-  const totalPages = Math.ceil(chunks.length / PAGE_SIZE)
-  const startIndex = page * PAGE_SIZE
-  const endIndex = Math.min(startIndex + PAGE_SIZE, chunks.length)
-  const pageChunks = chunks.slice(startIndex, endIndex)
+  
+  // Filtering logic
+  const filteredChunks = chunks.filter((chunk: any) => {
+    if (!searchQuery) return true
+    const textContent = chunk.text || chunk.content || JSON.stringify(chunk)
+    return textContent.toLowerCase().includes(searchQuery.toLowerCase())
+  })
 
-  // Calculate stats
+  const visibleChunks = filteredChunks.slice(0, visibleCount)
+
   const avgLength = chunks.length > 0
     ? Math.round(chunks.reduce((sum: number, c: any) => sum + (c.text?.length || 0), 0) / chunks.length)
     : 0
 
+  // Scroll-based infinite load
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel || visibleCount >= filteredChunks.length) return
+
+    let scrollParent: HTMLElement | null = sentinel.parentElement
+    while (scrollParent) {
+      if (scrollParent.scrollHeight > scrollParent.clientHeight) break
+      scrollParent = scrollParent.parentElement
+    }
+    if (!scrollParent) return
+
+    const onScroll = () => {
+      const el = sentinelRef.current
+      if (!el || !scrollParent) return
+      const containerRect = scrollParent.getBoundingClientRect()
+      const sentinelRect = el.getBoundingClientRect()
+      
+      if (sentinelRect.top < containerRect.bottom + 200) {
+        setVisibleCount((v) => Math.min(v + PAGE_SIZE, filteredChunks.length))
+      }
+    }
+
+    onScroll()
+    scrollParent.addEventListener('scroll', onScroll, { passive: true })
+    return () => scrollParent!.removeEventListener('scroll', onScroll)
+  }, [filteredChunks.length, visibleCount])
+
+  // Reset pagination on search change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE)
+  }, [searchQuery])
+
   if (chunks.length === 0) {
     return (
-      <Text c="dimmed" size="sm">
-        {t('indexing.noResults')}
+      <Text c="dimmed" size="sm" ta="center" mt="xl">
+        {t('indexing.noResults', 'No chunks available')}
       </Text>
     )
   }
 
   return (
     <Stack gap="md">
-      <Paper withBorder p="md" radius="md" className={classes.statsCard || ''}>
-        <Text fw={700} size="sm" mb="sm">
-          {t('indexing.chunkStats')}
+      <Group justify="space-between" align="center" px="xs">
+        <Text size="sm" fw={700} style={{ color: '#1e293b' }}>
+          {t('indexing.chunksTable', 'Extracted Chunks')}
         </Text>
-        <SimpleGrid cols={2} spacing="md">
-          <StatItem label={t('indexing.totalChunks')} value={chunks.length} />
-          <StatItem label={t('indexing.avgLength')} value={`${avgLength} chars`} />
-        </SimpleGrid>
-      </Paper>
-
-      <Paper withBorder p="sm" radius="md" className={classes.paginationBar || ''}>
-        <Group justify="space-between">
-          <div>
-            <Text size="sm" fw={700}>
-              {t('indexing.chunksTable')}
-            </Text>
-          </div>
-          {totalPages > 1 && (
-            <Group gap="xs">
-              <Button
-                size="compact-sm"
-                variant="light"
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-              >
-                {t('indexing.previous')}
-              </Button>
-              <Text size="xs" c="dimmed">
-                {t('indexing.page')} {page + 1} {t('indexing.of')} {totalPages}
-              </Text>
-              <Button
-                size="compact-sm"
-                variant="light"
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page === totalPages - 1}
-              >
-                {t('indexing.next')}
-              </Button>
-            </Group>
-          )}
+        <Group gap="xs">
+          <Badge variant="light" color="indigo" size="sm" leftSection={<Layers size={10} />}>
+            {chunks.length} {t('indexing.totalChunks', 'Total')}
+          </Badge>
+          <Badge variant="light" color="teal" size="sm" leftSection={<AlignLeft size={10} />}>
+            ~{avgLength} {t('common.chars', 'Chars/Chunk')}
+          </Badge>
         </Group>
-      </Paper>
+      </Group>
 
-      <ScrollArea className={classes.tableContainer || ''}>
-        <Table striped highlightOnHover withTableBorder>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th style={{ width: '100px' }}>{t('indexing.nodeId')}</Table.Th>
-              <Table.Th style={{ width: '120px' }}>{t('indexing.contentType')}</Table.Th>
-              <Table.Th style={{ width: '100px' }}>{t('indexing.pageRange')}</Table.Th>
-              <Table.Th>{t('indexing.text')}</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {pageChunks.map((chunk: any, index: number) => (
-              <Table.Tr key={chunk.node_id || index}>
-                <Table.Td>
-                  <Text size="xs" ff="monospace">
-                    {String(chunk.node_id || index)}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Badge size="xs" variant="light">
-                    {chunk.content_type || '-'}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="xs">
-                    {chunk.page_start !== undefined && chunk.page_end !== undefined
-                      ? `${chunk.page_start}-${chunk.page_end}`
-                      : chunk.page_no !== undefined
-                      ? chunk.page_no
-                      : '-'}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm" lineClamp={3}>
-                    {chunk.text || '-'}
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      </ScrollArea>
+      <TextInput
+        placeholder={t('indexing.searchChunks', 'Search text in chunks...')}
+        leftSection={<Search size={16} color="#94a3b8" />}
+        value={searchQuery}
+        onChange={(event) => setSearchQuery(event.currentTarget.value)}
+        radius="md"
+        size="md"
+        style={{ border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc' }}
+        styles={{ input: { border: 'none', background: 'transparent' } }}
+      />
+
+      {filteredChunks.length === 0 && (
+        <Text c="dimmed" size="sm" ta="center" mt="xl">
+          {t('indexing.noSearchResults', 'No chunks match your search query.')}
+        </Text>
+      )}
+
+      <Stack gap="sm">
+        {visibleChunks.map((chunk: any, index: number) => (
+          <ChunkQuoteCard key={chunk.node_id || index} chunk={chunk} index={index + 1} />
+        ))}
+      </Stack>
+      
+      {/* Infinite Scroll Sentinel */}
+      {visibleCount < filteredChunks.length && (
+        <Center ref={sentinelRef} py="xl">
+          <Loader size="sm" color="gray" type="dots" />
+        </Center>
+      )}
     </Stack>
   )
 }
 
-function StatItem({ label, value }: { label: string; value: string | number }) {
+function ChunkQuoteCard({ chunk, index }: { chunk: any; index: number }) {
+  const textContent = chunk.text || '-'
+  const type = chunk.content_type || 'text'
+  const pageRange = chunk.page_start !== undefined && chunk.page_end !== undefined
+    ? `Page ${chunk.page_start}-${chunk.page_end}`
+    : chunk.page_no !== undefined
+    ? `Page ${chunk.page_no}`
+    : ''
+
   return (
-    <div>
-      <Text size="xs" c="dimmed" mb={4}>
-        {label}
-      </Text>
-      <Text size="lg" fw={700}>
-        {value}
-      </Text>
-    </div>
+    <Box style={{ position: 'relative' }}>
+      <Paper radius="md" p="md" style={{ border: '1px solid #e2e8f0', background: '#ffffff', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', borderLeft: '3px solid #4c8df8' }}>
+        <Group justify="space-between" mb="xs">
+          <Group gap="xs">
+            <Badge variant="filled" color="blue" size="xs" radius="sm">
+              #{index}
+            </Badge>
+            <Badge variant="light" color="gray" size="xs" style={{ textTransform: 'uppercase' }}>
+              {type}
+            </Badge>
+            {pageRange && (
+              <Text size="xs" fw={500} style={{ color: '#94a3b8' }}>
+                • {pageRange}
+              </Text>
+            )}
+          </Group>
+          <Text size="xs" fw={600} style={{ color: '#cbd5e1', fontFamily: 'monospace' }}>
+            {chunk.node_id || 'Unknown'}
+          </Text>
+        </Group>
+
+        <Box style={{ position: 'relative', paddingLeft: '12px' }}>
+          <Quote size={16} color="#e2e8f0" style={{ position: 'absolute', left: '-4px', top: '0px' }} />
+          <Text size="sm" style={{ color: '#475569', whiteSpace: 'pre-wrap', lineHeight: 1.6, zIndex: 1, position: 'relative' }}>
+            {textContent}
+          </Text>
+        </Box>
+        
+        <Group justify="flex-end" mt="xs">
+          <Text size="xs" fw={500} style={{ color: '#cbd5e1' }}>
+            {textContent.length} chars
+          </Text>
+        </Group>
+      </Paper>
+    </Box>
   )
 }

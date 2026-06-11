@@ -1,18 +1,21 @@
 .container {
-  background: #fbfcfd;
-  border-color: #dfe5ea;
-  box-shadow: 0 10px 28px rgba(31, 42, 55, 0.05);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
   flex: 0 0 auto;
 }
 
 .timeline {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 8px; /* For top/bottom/left/right box-shadow and hover translate */
 }
 
 .stageWrapper {
-  min-width: 0;
+  flex: 1;
+  min-width: 180px;
 }
 
 .connector {
@@ -21,69 +24,71 @@
 
 .stageCard {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: center;
-  min-height: 68px;
-  padding: 10px;
-  border: 1px solid #e0e5ea;
-  border-radius: 8px;
-  background: var(--mantine-color-white);
+  min-height: 72px;
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   width: 100%;
   text-align: left;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
 }
 
 .stageCard:hover {
-  background: #f7fafc;
-  border-color: #cbd5df;
-  transform: translateY(-1px);
-  box-shadow: 0 5px 16px rgba(31, 42, 55, 0.08);
+  border-color: #cbd5e1;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
 }
 
 .stageCard:active {
   transform: translateY(0);
 }
 
-.stageCardSelected {
-  background: #ecf8f5;
-  border-color: #38ad99;
-  box-shadow: inset 0 -3px 0 #38ad99;
-}
-
-.stageCardSelected:hover {
-  background: #e4f5f1;
-  border-color: #258f7d;
-}
-
 .stageSuccess {
-  border-color: #a9dbc8;
-  background: #f1fbf6;
+  border-color: #a7f3d0;
+  background: #f0fdf4;
 }
 
 .stageSuccess:hover {
-  border-color: #72bea1;
-  background: #e7f7ee;
+  border-color: #6ee7b7;
+  background: #ecfdf5;
 }
 
 .stageError {
-  border-color: #f5b5b5;
-  background: #fff6f6;
+  border-color: #fca5a5;
+  background: #fef2f2;
 }
 
 .stageError:hover {
-  border-color: #ea8585;
-  background: #feecec;
+  border-color: #f87171;
+  background: #fef2f2;
 }
 
 .stageRunning {
-  border-color: #e9c46a;
-  background: #fffaf0;
+  border-color: #fde047;
+  background: #fefce8;
 }
 
 .stageRunning:hover {
-  border-color: #d8a62e;
-  background: #fff4da;
+  border-color: #facc15;
+  background: #fefce8;
+}
+
+/* Selected state should be declared AFTER status states to override them */
+.stageCardSelected {
+  background: #eff6ff !important;
+  border: 1px solid #3b82f6 !important;
+  box-shadow: 0 0 0 1px #3b82f6, 0 4px 20px rgba(59, 130, 246, 0.25) !important;
+  transform: translateY(-2px);
+}
+
+.stageCardSelected:hover {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 1px #2563eb, 0 8px 24px rgba(59, 130, 246, 0.3) !important;
 }
 
 .stageIcon {
@@ -91,115 +96,85 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  background: #eef2f5;
-  color: var(--mantine-color-gray-7);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #64748b;
+  transition: all 0.3s ease;
 }
 
 .stageCardSelected .stageIcon {
-  background: #cceee7;
-  color: #176f62;
+  background: linear-gradient(135deg, rgba(76, 141, 248, 0.1) 0%, rgba(85, 199, 200, 0.1) 100%);
+  color: #4c8df8;
 }
 
 .stageBody {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.stageLabel {
+  font-weight: 700;
+  font-size: 14px;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stageCardSelected .stageLabel {
+  color: #0f172a;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
 }
 
 .statusIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
 }
 
+.statusText {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .iconSuccess {
-  color: var(--mantine-color-green-6);
+  color: #10b981;
 }
 
 .iconError {
-  color: var(--mantine-color-red-6);
-}
-
-.iconRunning {
-  color: var(--mantine-color-yellow-6);
-  animation: pulse 2s ease-in-out infinite;
+  color: #ef4444;
 }
 
 .iconPending {
-  color: var(--mantine-color-gray-4);
+  color: #f59e0b;
 }
 
 .iconDefault {
-  color: var(--mantine-color-gray-3);
+  color: #94a3b8;
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
+@media (max-width: 1200px) {
+  .stageWrapper {
+    min-width: 140px;
   }
 }
 
 @media (max-width: 768px) {
   .timeline {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex-direction: column;
   }
-
-  .stageCard {
-    min-height: 64px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .connector {
-    background: var(--mantine-color-dark-4);
-  }
-
-  .stageCard {
-    background: var(--mantine-color-dark-6);
-    border-color: var(--mantine-color-dark-4);
-  }
-
-  .stageCard:hover {
-    background: var(--mantine-color-dark-5);
-    border-color: var(--mantine-color-dark-3);
-  }
-
-  .stageCardSelected {
-    background: var(--mantine-color-dark-5);
-    border-color: var(--mantine-color-blue-7);
-  }
-
-  .stageCardSelected:hover {
-    background: var(--mantine-color-dark-4);
-  }
-
-  .stageIcon {
-    background: var(--mantine-color-dark-5);
-    color: var(--mantine-color-gray-5);
-  }
-
-  .stageCardSelected .stageIcon {
-    background: var(--mantine-color-dark-4);
-    color: var(--mantine-color-blue-4);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .stageCard {
-    transition: none;
-  }
-
-  .stageCard:hover {
-    transform: none;
-  }
-
-  .iconRunning {
-    animation: none;
+  
+  .stageWrapper {
+    min-width: 100%;
   }
 }

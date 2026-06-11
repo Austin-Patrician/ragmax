@@ -118,34 +118,30 @@ function StageCard({ stage, stageRun, selected, onClick }: StageCardProps) {
         onClick={onClick}
       >
         <div className={classes.stageIcon || ''}>
-          <Icon size={20} />
+          <Icon size={18} />
         </div>
         <div className={classes.stageBody || ''}>
-          <Group justify="space-between" gap={4} wrap="nowrap">
-            <Text fw={700} size="xs" lineClamp={1}>
-              {t(stage.labelKey)}
-            </Text>
+          <div className={classes.stageLabel || ''}>
+            {t(stage.labelKey)}
+          </div>
+          <div className={classes.statusRow || ''}>
             <div className={classes.statusIcon || ''}>{statusIcon}</div>
-          </Group>
-          {stageRun && (
-            <Group gap={4} mt={2}>
-              {stageRun.duration_ms !== null && (
-                <Text size="10px" c="dimmed">
-                  {formatDuration(stageRun.duration_ms)}
-                </Text>
+            <div className={classes.statusText || ''} style={{ color: '#64748b' }}>
+              {stageRun?.duration_ms !== null && stageRun?.duration_ms !== undefined ? (
+                formatDuration(stageRun.duration_ms)
+              ) : (
+                <span>{t('common.pending', 'Pending')}</span>
               )}
-              {stageRun.artifact_count > 0 && (
-                <>
-                  <Text size="10px" c="dimmed">
-                    •
-                  </Text>
-                  <Text size="10px" c="dimmed">
-                    {stageRun.artifact_count} {t('common.artifacts')}
-                  </Text>
-                </>
-              )}
-            </Group>
-          )}
+            </div>
+            {stageRun && stageRun.artifact_count > 0 && (
+              <>
+                <span style={{ color: '#cbd5e1', fontSize: '10px' }}>•</span>
+                <span style={{ color: '#64748b', fontSize: '12px' }}>
+                  {stageRun.artifact_count} {t('common.artifacts', 'artifacts')}
+                </span>
+              </>
+            )}
+          </div>
         </div>
       </button>
     </Tooltip>

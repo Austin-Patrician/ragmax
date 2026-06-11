@@ -12,6 +12,7 @@ class DatasetRecord:
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    file_count: int = 0
 
 
 @dataclass(frozen=True)

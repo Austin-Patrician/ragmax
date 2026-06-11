@@ -1,8 +1,8 @@
-import { Badge, Button, Group, Paper, Progress, SimpleGrid, Stack, Table, Text, ScrollArea } from '@mantine/core'
-import { useState } from 'react'
+import { Badge, Group, Progress, Stack, Table, Text, TextInput, Loader, Center } from '@mantine/core'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Layers, Search, Activity, AlertTriangle } from 'lucide-react'
 import type { ArtifactData } from '@/types'
-import classes from './TableViewer.module.css'
 
 type QualityEnrichViewerProps = {
   data: ArtifactData
@@ -12,90 +12,125 @@ const PAGE_SIZE = 50
 
 export function QualityEnrichViewer({ data }: QualityEnrichViewerProps) {
   const { t } = useTranslation()
-  const [page, setPage] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const sentinelRef = useRef<HTMLDivElement>(null)
 
   const nodes = Array.isArray(data.data) ? data.data : []
-  const totalPages = Math.ceil(nodes.length / PAGE_SIZE)
-  const startIndex = page * PAGE_SIZE
-  const endIndex = Math.min(startIndex + PAGE_SIZE, nodes.length)
-  const pageNodes = nodes.slice(startIndex, endIndex)
+  
+  // Filtering logic
+  const filteredNodes = nodes.filter((node: any) => {
+    if (!searchQuery) return true
+    const textContent = node.text || node.enriched_text || JSON.stringify(node)
+    return textContent.toLowerCase().includes(searchQuery.toLowerCase())
+  })
+
+  const visibleNodes = filteredNodes.slice(0, visibleCount)
 
   // Calculate stats
   const nodesWithQuality = nodes.filter((n: any) => n.quality_score !== undefined)
   const avgQuality = nodesWithQuality.length > 0
-    ? (nodesWithQuality.reduce((sum: number, n: any) => sum + (n.quality_score || 0), 0) / nodesWithQuality.length).toFixed(2)
+    ? (nodesWithQuality.reduce((sum: number, n: any) => sum + (n.quality_score || 0), 0) / nodesWithQuality.length * 100).toFixed(0)
     : 0
   const totalWarnings = nodes.reduce((sum: number, n: any) => sum + (n.warnings?.length || 0), 0)
 
+  // Scroll-based infinite load
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel || visibleCount >= filteredNodes.length) return
+
+    let scrollParent: HTMLElement | null = sentinel.parentElement
+    while (scrollParent) {
+      if (scrollParent.scrollHeight > scrollParent.clientHeight) break
+      scrollParent = scrollParent.parentElement
+    }
+    if (!scrollParent) return
+
+    const onScroll = () => {
+      const el = sentinelRef.current
+      if (!el || !scrollParent) return
+      const containerRect = scrollParent.getBoundingClientRect()
+      const sentinelRect = el.getBoundingClientRect()
+      
+      if (sentinelRect.top < containerRect.bottom + 200) {
+        setVisibleCount((v) => Math.min(v + PAGE_SIZE, filteredNodes.length))
+      }
+    }
+
+    onScroll()
+    scrollParent.addEventListener('scroll', onScroll, { passive: true })
+    return () => scrollParent!.removeEventListener('scroll', onScroll)
+  }, [filteredNodes.length, visibleCount])
+
+  // Reset pagination on search change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE)
+  }, [searchQuery])
+
   if (nodes.length === 0) {
     return (
-      <Text c="dimmed" size="sm">
-        {t('indexing.noResults')}
+      <Text c="dimmed" size="sm" ta="center" mt="xl">
+        {t('indexing.noResults', 'No quality data available')}
       </Text>
     )
   }
 
   return (
     <Stack gap="md">
-      <Paper withBorder p="md" radius="md" className={classes.statsCard || ''}>
-        <Text fw={700} size="sm" mb="sm">
-          {t('indexing.qualityStats')}
+      {/* Compact Top Stats */}
+      <Group justify="space-between" align="center" px="xs">
+        <Text size="sm" fw={700} style={{ color: '#1e293b' }}>
+          {t('indexing.qualityEnrich', 'Quality Enrichment')}
         </Text>
-        <SimpleGrid cols={3} spacing="md">
-          <StatItem label={t('common.nodes')} value={nodes.length} />
-          <StatItem label={t('indexing.avgQuality')} value={avgQuality} />
-          <StatItem label={t('indexing.warningCount')} value={totalWarnings} />
-        </SimpleGrid>
-      </Paper>
-
-      <Paper withBorder p="sm" radius="md" className={classes.paginationBar || ''}>
-        <Group justify="space-between">
-          <div>
-            <Text size="sm" fw={700}>
-              {t('indexing.qualityEnrich')}
-            </Text>
-          </div>
-          {totalPages > 1 && (
-            <Group gap="xs">
-              <Button
-                size="compact-sm"
-                variant="light"
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-              >
-                {t('indexing.previous')}
-              </Button>
-              <Text size="xs" c="dimmed">
-                {t('indexing.page')} {page + 1} {t('indexing.of')} {totalPages}
-              </Text>
-              <Button
-                size="compact-sm"
-                variant="light"
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page === totalPages - 1}
-              >
-                {t('indexing.next')}
-              </Button>
-            </Group>
+        <Group gap="xs">
+          <Badge variant="light" color="indigo" size="sm" leftSection={<Layers size={10} />}>
+            {nodes.length} {t('common.nodes', 'Nodes')}
+          </Badge>
+          <Badge variant="light" color="teal" size="sm" leftSection={<Activity size={10} />}>
+            {avgQuality}% {t('indexing.avgQuality', 'Avg Quality')}
+          </Badge>
+          {totalWarnings > 0 && (
+            <Badge variant="light" color="orange" size="sm" leftSection={<AlertTriangle size={10} />}>
+              {totalWarnings} {t('indexing.warningCount', 'Warnings')}
+            </Badge>
           )}
         </Group>
-      </Paper>
+      </Group>
 
-      <ScrollArea className={classes.tableContainer || ''}>
+      {/* Search Bar */}
+      <TextInput
+        placeholder={t('indexing.searchNodes', 'Search enriched nodes...')}
+        leftSection={<Search size={16} color="#94a3b8" />}
+        value={searchQuery}
+        onChange={(event) => setSearchQuery(event.currentTarget.value)}
+        radius="md"
+        size="md"
+        style={{ border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc' }}
+        styles={{ input: { border: 'none', background: 'transparent' } }}
+      />
+
+      {filteredNodes.length === 0 && (
+        <Text c="dimmed" size="sm" ta="center" mt="xl">
+          {t('indexing.noSearchResults', 'No nodes match your search query.')}
+        </Text>
+      )}
+
+      {/* Table Display */}
+      {filteredNodes.length > 0 && (
         <Table striped highlightOnHover withTableBorder>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th style={{ width: '100px' }}>{t('indexing.nodeId')}</Table.Th>
-              <Table.Th style={{ width: '120px' }}>{t('indexing.qualityScore')}</Table.Th>
-              <Table.Th style={{ width: '150px' }}>{t('indexing.warnings')}</Table.Th>
-              <Table.Th>{t('indexing.text')}</Table.Th>
+              <Table.Th style={{ width: '100px' }}>{t('indexing.nodeId', 'Node ID')}</Table.Th>
+              <Table.Th style={{ width: '120px' }}>{t('indexing.qualityScore', 'Quality')}</Table.Th>
+              <Table.Th style={{ width: '150px' }}>{t('indexing.warnings', 'Warnings')}</Table.Th>
+              <Table.Th>{t('indexing.text', 'Text')}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {pageNodes.map((node: any, index: number) => (
+            {visibleNodes.map((node: any, index: number) => (
               <Table.Tr key={node.node_id || index}>
                 <Table.Td>
-                  <Text size="xs" ff="monospace">
+                  <Text size="xs" ff="monospace" c="dimmed">
                     {String(node.node_id || index)}
                   </Text>
                 </Table.Td>
@@ -112,9 +147,7 @@ export function QualityEnrichViewer({ data }: QualityEnrichViewerProps) {
                       />
                     </Stack>
                   ) : (
-                    <Text size="xs" c="dimmed">
-                      -
-                    </Text>
+                    <Text size="xs" c="dimmed">-</Text>
                   )}
                 </Table.Td>
                 <Table.Td>
@@ -132,9 +165,7 @@ export function QualityEnrichViewer({ data }: QualityEnrichViewerProps) {
                       )}
                     </Stack>
                   ) : (
-                    <Text size="xs" c="dimmed">
-                      -
-                    </Text>
+                    <Text size="xs" c="dimmed">-</Text>
                   )}
                 </Table.Td>
                 <Table.Td>
@@ -146,21 +177,15 @@ export function QualityEnrichViewer({ data }: QualityEnrichViewerProps) {
             ))}
           </Table.Tbody>
         </Table>
-      </ScrollArea>
-    </Stack>
-  )
-}
+      )}
 
-function StatItem({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div>
-      <Text size="xs" c="dimmed" mb={4}>
-        {label}
-      </Text>
-      <Text size="lg" fw={700}>
-        {value}
-      </Text>
-    </div>
+      {/* Infinite Scroll Sentinel */}
+      {visibleCount < filteredNodes.length && (
+        <Center ref={sentinelRef} py="xl">
+          <Loader size="sm" color="gray" type="dots" />
+        </Center>
+      )}
+    </Stack>
   )
 }
 

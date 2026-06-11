@@ -54,6 +54,7 @@ class DatasetResponse(BaseModel):
     metadata: dict[str, Any]
     created_at: str | None
     updated_at: str | None
+    file_count: int = 0
 
 
 class DatasetFileResponse(BaseModel):
@@ -208,6 +209,7 @@ def _dataset_response(dataset: DatasetRecord) -> DatasetResponse:
         metadata=dataset.metadata,
         created_at=dataset.created_at.isoformat() if dataset.created_at else None,
         updated_at=dataset.updated_at.isoformat() if dataset.updated_at else None,
+        file_count=dataset.file_count,
     )
 
 

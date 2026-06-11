@@ -1,4 +1,4 @@
-import { Alert, Code, Group, Loader, Paper, ScrollArea, Stack, Text } from '@mantine/core'
+import { Alert, Code, Group, Loader, Paper, ScrollArea, Stack, Text,Badge  } from '@mantine/core'
 import { useTranslation } from 'react-i18next'
 import type { ArtifactData, IndexingStageName } from '@/types'
 import { SourceConfigViewer } from './viewers/SourceConfigViewer'
@@ -55,31 +55,31 @@ export function ArtifactViewer({ stageName, artifactData, isLoading, error }: Ar
   }
 
   return (
-    <Paper withBorder radius="lg" p="md" className={classes.container || ''}>
+    <Paper radius="md" p="xl" className={classes.container || ''}>
       <div className={classes.header}>
-        <Text fw={700} size="lg">
-          {t('indexing.artifactViewer')}
+        <Text fw={700} size="xl" style={{ color: '#1e293b' }}>
+          {t('indexing.artifactViewer', 'Artifact Viewer')}
         </Text>
-        <Group gap="xs" mt={4}>
-          <Text size="xs" c="dimmed">
+        <Group gap="xs" mt={8}>
+          <Badge variant="light" color="indigo" size="sm">
             {artifactData.manifest.artifact_type}
+          </Badge>
+          <Text size="xs" c="dimmed">
+            •
+          </Text>
+          <Text size="xs" fw={600} style={{ color: '#64748b' }}>
+            {artifactData.manifest.record_count} {t('indexing.records', 'records')}
           </Text>
           <Text size="xs" c="dimmed">
             •
           </Text>
-          <Text size="xs" c="dimmed">
-            {artifactData.manifest.record_count} {t('indexing.records')}
-          </Text>
-          <Text size="xs" c="dimmed">
-            •
-          </Text>
-          <Text size="xs" c="dimmed">
+          <Text size="xs" fw={600} style={{ color: '#64748b' }}>
             {formatBytes(artifactData.manifest.size_bytes)}
           </Text>
         </Group>
       </div>
 
-      <ScrollArea className={classes.content || ''}>
+      <ScrollArea className={classes.content || ''} style={{ flex: 1, minHeight: 0 }} offsetScrollbars>
         {renderViewer(stageName, artifactData)}
       </ScrollArea>
     </Paper>

@@ -1,7 +1,5 @@
-import { Alert, Badge, Group, Loader, Paper, ScrollArea, Stack, Text } from '@mantine/core'
-import { FileText, CheckCircle2, Clock, XCircle } from 'lucide-react'
+import { Alert, Group, Loader, Paper, ScrollArea, Stack, Text } from '@mantine/core'
 import { useTranslation } from 'react-i18next'
-import { StatusBadge } from '@/components/ui/StatusBadge'
 import type { Source, IndexPipelineRun } from '@/types'
 import classes from './FileListPanel.module.css'
 
@@ -103,7 +101,7 @@ type FileCardProps = {
 }
 
 function FileCard({ source, latestRun, selected, onClick }: FileCardProps) {
-  const icon = getStatusIcon(latestRun?.status)
+  const iconSrc = getFileIcon(source.filename || source.source_id)
 
   return (
     <button
@@ -113,51 +111,60 @@ function FileCard({ source, latestRun, selected, onClick }: FileCardProps) {
       aria-pressed={selected}
       aria-label={`Select file ${source.filename || source.source_id}`}
     >
-      <div className={classes.fileIcon}>{icon}</div>
+      <div className={classes.fileIcon}>
+        <img src={iconSrc} width={24} height={24} alt="" style={{ objectFit: 'contain' }} />
+      </div>
       <div className={classes.fileBody}>
-        <Group justify="space-between" gap="xs" wrap="nowrap">
-          <Text fw={700} size="sm" lineClamp={1} className={classes.fileName || ''}>
-            {source.filename || source.source_id}
-          </Text>
-          {latestRun ? <StatusBadge value={latestRun.status} /> : null}
-        </Group>
+        <Text fw={700} size="sm" lineClamp={1} className={classes.fileName || ''}>
+          {source.filename || source.source_id}
+        </Text>
         <Group gap={6} mt={4} wrap="nowrap">
           <Text size="xs" c="dimmed" lineClamp={1}>
             {formatFileSize(source.file_size)}
           </Text>
           {latestRun?.finished_at && (
             <>
-              <Text size="xs" c="dimmed">
-                •
-              </Text>
+              <Text size="xs" c="dimmed">•</Text>
               <Text size="xs" c="dimmed" lineClamp={1}>
                 {formatDate(latestRun.finished_at)}
               </Text>
             </>
           )}
         </Group>
-        {latestRun?.effective_profile && (
-          <Badge size="xs" variant="light" mt={4}>
-            {latestRun.effective_profile}
-          </Badge>
-        )}
       </div>
     </button>
   )
 }
 
-function getStatusIcon(status: string | undefined) {
-  switch (status) {
-    case 'succeeded':
-    case 'completed':
-      return <CheckCircle2 size={18} className={classes.iconSuccess} />
-    case 'failed':
-      return <XCircle size={18} className={classes.iconError} />
-    case 'running':
-    case 'pending':
-      return <Clock size={18} className={classes.iconPending} />
+function getFileIcon(filename: string) {
+  const ext = filename.split('.').pop()?.toLowerCase() || ''
+  
+  switch (ext) {
+    case 'pdf':
+      return '/fileicon/Pdf.svg'
+    case 'jpg':
+    case 'jpeg':
+      return '/fileicon/JPEG.svg'
+    case 'png':
+      return '/fileicon/png.svg'
+    case 'gif':
+      return '/fileicon/GIF.svg'
+    case 'svg':
+      return '/fileicon/svg.svg'
+    case 'csv':
+    case 'xlsx':
+    case 'xls':
+      return '/fileicon/execel.svg'
+    case 'md':
+    case 'mdx':
+      return '/fileicon/markdown.svg'
+    case 'txt':
+      return '/fileicon/txt.svg'
+    case 'doc':
+    case 'docx':
+      return '/fileicon/word.svg'
     default:
-      return <FileText size={18} className={classes.iconDefault} />
+      return '/fileicon/txt.svg'
   }
 }
 

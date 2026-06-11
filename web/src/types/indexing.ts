@@ -20,6 +20,7 @@ export type Dataset = {
   metadata: Record<string, unknown>
   created_at: string | null
   updated_at: string | null
+  file_count?: number  // included when backend returns it in list view
 }
 
 export type DatasetFile = {

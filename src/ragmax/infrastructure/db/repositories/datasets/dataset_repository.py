@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ragmax.domain.datasets.ports import DatasetFileRepository, DatasetRepository
@@ -35,10 +35,15 @@ class SQLAlchemyDatasetRepository(DatasetRepository):
 
     async def list(self, limit: int = 100, offset: int = 0) -> tuple[DatasetRecord, ...]:
         result = await self._session.execute(
-            select(DatasetModel).order_by(DatasetModel.created_at.desc()).limit(limit).offset(offset)
+            select(DatasetModel, func.count(DatasetFileModel.id).label("file_count"))
+            .outerjoin(DatasetFileModel, DatasetModel.dataset_id == DatasetFileModel.dataset_id)
+            .group_by(DatasetModel.dataset_id)
+            .order_by(DatasetModel.created_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
-        models = result.scalars().all()
-        return tuple(self._model_to_record(model) for model in models)
+        rows = result.all()
+        return tuple(self._model_to_record(model, file_count) for model, file_count in rows)
 
     async def update(self, dataset: DatasetRecord) -> DatasetRecord:
         result = await self._session.execute(
@@ -63,7 +68,7 @@ class SQLAlchemyDatasetRepository(DatasetRepository):
         )
         return result.rowcount > 0
 
-    def _model_to_record(self, model: DatasetModel) -> DatasetRecord:
+    def _model_to_record(self, model: DatasetModel, file_count: int = 0) -> DatasetRecord:
         return DatasetRecord(
             dataset_id=model.dataset_id,
             name=model.name,
@@ -72,6 +77,7 @@ class SQLAlchemyDatasetRepository(DatasetRepository):
             metadata=dict(model.dataset_metadata),
             created_at=model.created_at,
             updated_at=model.updated_at,
+            file_count=file_count,
         )
 
 

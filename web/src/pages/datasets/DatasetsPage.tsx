@@ -29,7 +29,8 @@ export default function DatasetsPage() {
       {/* Header Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <span style={{ fontSize: '24px' }}>💾</span>
+          {/* <span style={{ fontSize: '24px' }}>💾</span> */}
+          <img src={'/dataset.svg'} width={32} height={32} alt="" />
           <h1 style={{ fontSize: '24px', fontWeight: 600, margin: 0 }}>
             {t('datasets.title', 'Dataset')}
           </h1>
@@ -139,7 +140,11 @@ export default function DatasetsPage() {
                 </p>
               )}
               <div style={{ fontSize: '12px', color: '#999', marginTop: 'auto' }}>
-                <div>0 {t('datasets.files_count', 'files')}</div>
+                <div>
+                  {dataset.file_count !== undefined
+                    ? `${dataset.file_count} ${t('datasets.files_count', 'files')}`
+                    : t('datasets.files_count', 'files')}
+                </div>
                 <div>{formatDate(dataset.created_at)}</div>
               </div>
             </Link>

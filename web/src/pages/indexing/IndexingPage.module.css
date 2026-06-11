@@ -1,23 +1,33 @@
 .pageContainer {
-  --indexing-workspace-height: calc(100dvh - var(--layout-header-height, 92px) - 84px);
+  --indexing-workspace-height: calc(100dvh - var(--layout-header-height, 72px) - 84px);
   height: var(--indexing-workspace-height);
   min-height: 560px;
+  width: 100%;
   max-width: 100%;
+  margin: 0 auto;
+  padding: 0 16px;
+  overflow: hidden;
 }
 
 .mainLayout {
   display: grid;
-  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: 340px minmax(0, 1fr);
   align-items: stretch;
   height: 100%;
   min-height: 0;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
 }
 
 .sidebar {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  background: #f8fafc;
+  border-right: 1px solid #e2e8f0;
 }
 
 .mainContent {
@@ -26,13 +36,15 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  padding: 24px 32px;
+  background: #ffffff;
 }
 
 .detailColumn {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 12px;
+  gap: 20px;
   min-height: 0;
 }
 
@@ -40,6 +52,10 @@
   display: flex;
   flex: 1;
   min-height: 0;
+  background: #fbfdff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
 }
 
 .artifactPane > * {
@@ -54,6 +70,8 @@
   flex: 1;
   min-height: 0;
   text-align: center;
+  background: transparent;
+  border: none;
 }
 
 /* Tablet */
