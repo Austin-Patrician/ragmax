@@ -31,7 +31,6 @@ class IndexStageStatus(StrEnum):
 class IndexingStage(StrEnum):
     SOURCE = "source"
     PARSE_BLOCKS = "parse_blocks"
-    ANALYZE_PROFILE = "analyze_profile"
     CHUNK_NODES = "chunk_nodes"
     QUALITY_ENRICH = "quality_enrich"
     VECTORIZE = "vectorize"
@@ -40,7 +39,6 @@ class IndexingStage(StrEnum):
 INDEXING_STAGE_ORDER: tuple[IndexingStage, ...] = (
     IndexingStage.SOURCE,
     IndexingStage.PARSE_BLOCKS,
-    IndexingStage.ANALYZE_PROFILE,
     IndexingStage.CHUNK_NODES,
     IndexingStage.QUALITY_ENRICH,
     IndexingStage.VECTORIZE,
@@ -68,11 +66,11 @@ class IndexJobRecord:
     job_id: str
     source_id: str
     status: IndexJobStatus
-    requested_profile: str | None = None
-    effective_profile: str | None = None
+    requested_chunker: str | None = None
+    effective_chunker: str | None = None
     requested_parser: str | None = None
     effective_parser: str | None = None
-    overrides: dict[str, Any] = field(default_factory=dict)
+    config: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     error_message: str | None = None
     vector_status: str | None = None
@@ -114,11 +112,7 @@ class IndexPipelineRunRecord:
     run_id: str
     source_id: str
     status: IndexPipelineStatus
-    requested_profile: str | None = None
-    effective_profile: str | None = None
-    requested_parser: str | None = None
-    effective_parser: str | None = None
-    overrides: dict[str, Any] = field(default_factory=dict)
+    config: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     error_message: str | None = None
     created_at: datetime | None = None

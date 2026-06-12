@@ -4,7 +4,6 @@ from collections.abc import AsyncIterator, Callable
 from time import perf_counter
 
 from ragmax.application.indexing.ports import EmbeddingProvider, IndexingUnitOfWork
-from ragmax.application.indexing.registry import IndexingProfileRegistry
 from ragmax.application.retrieval.dtos import (
     AnswerCitation,
     AnswerCommand,
@@ -42,7 +41,6 @@ class RetrievalService:
         reranker: Reranker | None,
         fine_reranker: Reranker | None,
         answer_generator: AnswerGenerator | None,
-        profile_registry: IndexingProfileRegistry,
         unit_of_work_factory: IndexingUnitOfWorkFactory,
         default_top_k: int,
         max_top_k: int,
@@ -62,7 +60,6 @@ class RetrievalService:
         self._reranker = reranker
         self._fine_reranker = fine_reranker
         self._answer_generator = answer_generator
-        self._profile_registry = profile_registry
         self._unit_of_work_factory = unit_of_work_factory
         self._default_top_k = default_top_k
         self._max_top_k = max_top_k
@@ -620,9 +617,7 @@ class RetrievalService:
         }
 
     def _text_collection_names(self) -> tuple[str, ...]:
-        return tuple(
-            sorted({profile.text_collection for profile in self._profile_registry.list()})
-        )
+        return ("ragmax_text_nodes",)
 
     def _normalize_query_text(self, query: str) -> NormalizedQuery:
         """Normalize query text."""

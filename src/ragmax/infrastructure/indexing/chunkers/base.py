@@ -2,26 +2,31 @@ import hashlib
 import math
 import re
 from dataclasses import replace
+from typing import Any
 
 from llama_index.core.node_parser import SentenceSplitter
 
 from ragmax.domain.indexing.blocks import BlockType, ContentBlock
 from ragmax.domain.indexing.documents import SourceDocument
 from ragmax.domain.indexing.entities import IndexNode
-from ragmax.domain.indexing.profiles import IndexingProfile
+from ragmax.domain.indexing.tokenization import Tokenizer
 
 
 class BaseChunker:
-    chunker_version = "v1"
+    chunker_version = "v2"
 
-    def _split_text(self, text: str, profile: IndexingProfile) -> list[str]:
+    def _split_text(self, text: str, config: dict[str, Any], tokenizer: Tokenizer) -> list[str]:
         normalized_text = text.strip()
         if not normalized_text:
             return []
 
+        chunk_size = config.get("chunk_size", 1000)
+        chunk_overlap = config.get("chunk_overlap", 100)
+
         splitter = SentenceSplitter(
-            chunk_size=profile.chunk_size,
-            chunk_overlap=profile.chunk_overlap,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            tokenizer=tokenizer.encode,
         )
         return [chunk.strip() for chunk in splitter.split_text(normalized_text) if chunk.strip()]
 
@@ -29,7 +34,8 @@ class BaseChunker:
         self,
         *,
         document: SourceDocument,
-        profile: IndexingProfile,
+        chunker_name: str,
+        config: dict[str, Any],
         text: str,
         content_type: str,
         modality: str = "text",
@@ -42,13 +48,13 @@ class BaseChunker:
         page_start = min(page_numbers) if page_numbers else None
         page_end = max(page_numbers) if page_numbers else None
 
-        # Apply bbox aggregation strategy from profile options
-        bbox_strategy = profile.options.get("bbox_aggregation_strategy", "union")
+        # Apply bbox aggregation strategy from config
+        bbox_strategy = config.get("bbox_aggregation_strategy", "union")
         bbox = self._aggregate_bboxes(blocks, strategy=bbox_strategy)
 
         block_ids = tuple(block.block_id for block in blocks)
 
-        # Prioritize section_hint from blocks if available (parser-provided structure)
+        # Prioritize section_hint from blocks if available
         effective_section_path = section_path
         if blocks:
             first_block = blocks[0] if isinstance(blocks, (list, tuple)) else blocks
@@ -57,7 +63,7 @@ class BaseChunker:
 
         node_id = self._build_node_id(
             document.source_id,
-            profile.name.value,
+            chunker_name,
             content_type,
             text,
             block_ids,
@@ -76,20 +82,21 @@ class BaseChunker:
             block_ids=block_ids,
             parent_node_id=parent_node_id,
             bbox=bbox,
-            indexing_profile=profile.name.value,
+            indexing_profile=chunker_name,  # 现在存储chunker名称
             parser_version=document.parser_version,
             chunker_version=self.chunker_version,
             metadata=metadata or {},
         )
 
-    def _estimate_tokens(self, text: str) -> int:
-        return max(1, math.ceil(len(text) / 4))
+    def _token_count(self, text: str, tokenizer: Tokenizer) -> int:
+        """使用真实tokenizer计算Token数量（替代字符估算）"""
+        return tokenizer.count_tokens(text)
 
-    def _build_chunk_metadata(self, text: str, blocks: list[ContentBlock]) -> dict[str, object]:
+    def _build_chunk_metadata(self, text: str, blocks: list[ContentBlock], tokenizer: Tokenizer) -> dict[str, object]:
         page_numbers = [block.page_no for block in blocks if block.page_no is not None]
         return {
             "char_count": len(text),
-            "estimated_tokens": self._estimate_tokens(text),
+            "token_count": self._token_count(text, tokenizer),  # 使用真实token计数
             "block_count": len(blocks),
             "page_numbers": page_numbers,
         }

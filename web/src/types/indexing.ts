@@ -20,7 +20,7 @@ export type Dataset = {
   metadata: Record<string, unknown>
   created_at: string | null
   updated_at: string | null
-  file_count?: number  // included when backend returns it in list view
+  file_count?: number
 }
 
 export type DatasetFile = {
@@ -58,7 +58,6 @@ export type AddFilesToDatasetInput = {
 export type IndexingStageName =
   | 'source'
   | 'parse_blocks'
-  | 'analyze_profile'
   | 'chunk_nodes'
   | 'quality_enrich'
   | 'vectorize'
@@ -67,11 +66,12 @@ export type IndexPipelineRun = {
   run_id: string
   source_id: string
   status: string
-  requested_profile: string | null
-  effective_profile: string | null
-  requested_parser: string | null
-  effective_parser: string | null
-  overrides: Record<string, unknown>
+  config: {
+    parser?: string
+    parser_config?: Record<string, unknown>
+    chunker?: string
+    chunk_config?: Record<string, unknown>
+  }
   summary: Record<string, unknown>
   error_message: string | null
   created_at: string | null
@@ -123,4 +123,46 @@ export type ArtifactData = {
   manifest: IndexArtifactManifest
   data: Record<string, unknown> | Record<string, unknown>[]
   has_more: boolean
+}
+
+// 新增：Chunker和Parser选项类型
+export type ChunkerType =
+  | 'fixed_token'
+  | 'semantic_vector'
+  | 'section_aware'
+  | 'table_aware'
+  | 'ocr_page'
+
+export type ParserType =
+  | 'simple_directory_reader'
+  | 'llamaparse'
+  | 'mineru'
+
+export type ChunkConfig = {
+  chunk_size?: number
+  chunk_overlap?: number
+  tokenizer_model?: string
+  // Semantic Vector特定
+  similarity_threshold_percentile?: number
+  // Table Aware特定
+  repeat_table_header?: boolean
+  // Section Aware特定
+  keep_headings?: boolean
+}
+
+export type ParserConfig = {
+  // LlamaParse特定
+  tier?: 'free' | 'premium'
+  version?: string
+  // MinerU特定
+  enable_table?: boolean
+  enable_formula?: boolean
+}
+
+export type IndexingConfig = {
+  parser?: ParserType
+  parser_config?: ParserConfig
+  chunker?: ChunkerType
+  chunk_config?: ChunkConfig
+  capture_artifacts?: boolean
 }

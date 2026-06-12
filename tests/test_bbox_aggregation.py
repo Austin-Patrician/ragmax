@@ -20,7 +20,7 @@ def chunker():
 def profile_union():
     """Profile with union bbox strategy."""
     return IndexingProfile(
-        name=IndexingProfileName.DEFAULT_PDF,
+        name=IndexingProfileName.FIXED_TOKEN,
         description="Test",
         chunker="test",
         chunk_size=500,
@@ -33,7 +33,7 @@ def profile_union():
 def profile_first():
     """Profile with first bbox strategy."""
     return IndexingProfile(
-        name=IndexingProfileName.DEFAULT_PDF,
+        name=IndexingProfileName.FIXED_TOKEN,
         description="Test",
         chunker="test",
         chunk_size=500,
@@ -295,7 +295,7 @@ def test_first_strategy_skips_to_first_valid_bbox(chunker, profile_first, docume
 def test_default_strategy_is_union(chunker, document):
     """Test that default strategy (when not specified) is union."""
     profile_default = IndexingProfile(
-        name=IndexingProfileName.DEFAULT_PDF,
+        name=IndexingProfileName.FIXED_TOKEN,
         description="Test",
         chunker="test",
         chunk_size=500,
@@ -366,7 +366,7 @@ def test_union_with_negative_coordinates(chunker, profile_union, document):
 def test_unknown_strategy_defaults_to_union(chunker, document):
     """Test that unknown strategy falls back to union."""
     profile_unknown = IndexingProfile(
-        name=IndexingProfileName.DEFAULT_PDF,
+        name=IndexingProfileName.FIXED_TOKEN,
         description="Test",
         chunker="test",
         chunk_size=500,

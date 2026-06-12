@@ -7,12 +7,11 @@ def test_indexing_parsers_lists_user_visible_parsers(client: TestClient) -> None
     assert response.status_code == 200
     parsers = response.json()
     parser_names = {parser["name"] for parser in parsers}
-    assert parser_names == {"simple_directory_reader", "llamaparse"}
+    assert parser_names == {"simple_directory_reader", "llamaparse", "mineru"}
     assert "inline_content_parser" not in parser_names
-    assert any(
-        parser["name"] == "simple_directory_reader" and parser["is_default"]
-        for parser in parsers
-    )
+    default_parsers = [parser["name"] for parser in parsers if parser["is_default"]]
+    assert len(default_parsers) <= 1
+    assert set(default_parsers) <= parser_names
 
 
 def test_uploaded_text_source_indexes_with_default_simple_directory_reader(
@@ -56,9 +55,11 @@ def test_uploaded_text_source_indexes_with_default_simple_directory_reader(
     assert index_response.status_code == 200
     index_payload = index_response.json()
     assert index_payload["effective_parser"] == "simple_directory_reader"
+    assert index_payload["effective_chunker"] == "fixed_token"
     assert index_payload["job"]["effective_parser"] == "simple_directory_reader"
-    assert "parser" not in index_payload["effective_profile"]
-    assert index_payload["effective_profile"]["node_graph_mode"] == "parent_child"
+    assert index_payload["job"]["effective_chunker"] == "fixed_token"
+    assert index_payload["effective_config"]["parser"] == "simple_directory_reader"
+    assert index_payload["effective_config"]["chunker"] == "fixed_token"
     assert index_payload["node_count"] > 0
 
     artifacts_response = persisted_client.get(

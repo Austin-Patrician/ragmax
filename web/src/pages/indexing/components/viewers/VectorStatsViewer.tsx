@@ -18,7 +18,21 @@ export function VectorStatsViewer({ data }: VectorStatsViewerProps) {
 
   // Smartly extract the array of nodes from whatever structure the backend sends
   let nodes: any[] = []
-  if (data.data && typeof data.data === 'object') {
+  if (Array.isArray(data.data)) {
+    const first = data.data[0] as any
+    if (data.data.length === 1 && first && Array.isArray(first.vectorized_node_ids)) {
+      nodes = first.vectorized_node_ids.map((id: string) => ({
+        node_id: id,
+        text: `Successfully vectorized and stored in collection: ${first.collection || 'unknown'}`,
+        vector: [],
+        content_type: 'vector_id'
+      }))
+    } else if (data.data.length === 1 && first && Array.isArray(first.nodes)) {
+      nodes = first.nodes
+    } else {
+      nodes = data.data
+    }
+  } else if (data.data && typeof data.data === 'object') {
     if (Array.isArray((data.data as any).vectorized_node_ids)) {
       // Backend only sent node IDs, map them into objects for the viewer
       nodes = (data.data as any).vectorized_node_ids.map((id: string) => ({
@@ -31,19 +45,6 @@ export function VectorStatsViewer({ data }: VectorStatsViewerProps) {
       nodes = (data.data as any).nodes
     } else if (Array.isArray((data.data as any).data)) {
       nodes = (data.data as any).data
-    }
-  } else if (Array.isArray(data.data)) {
-    if (data.data.length === 1 && data.data[0] && Array.isArray(data.data[0].vectorized_node_ids)) {
-      nodes = data.data[0].vectorized_node_ids.map((id: string) => ({
-        node_id: id,
-        text: `Successfully vectorized and stored in collection: ${data.data[0].collection || 'unknown'}`,
-        vector: [],
-        content_type: 'vector_id'
-      }))
-    } else if (data.data.length === 1 && data.data[0] && Array.isArray(data.data[0].nodes)) {
-      nodes = data.data[0].nodes
-    } else {
-      nodes = data.data
     }
   }
   // Filtering logic
@@ -192,4 +193,4 @@ function VectorCard({ node, index }: { node: any; index: number }) {
   )
 }
 // simple fallback for t inside VectorCard
-const t = (key: string, fallback: string) => fallback
+const t = (_key: string, fallback: string) => fallback

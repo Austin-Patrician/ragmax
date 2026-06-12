@@ -12,6 +12,7 @@ class BlockType(StrEnum):
     CODE = "code"
     LIST = "list"
     QUOTE = "quote"
+    EQUATION = "equation"
 
 
 @dataclass(frozen=True)

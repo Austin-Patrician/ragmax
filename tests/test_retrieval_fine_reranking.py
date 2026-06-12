@@ -2,8 +2,6 @@ from collections.abc import Sequence
 
 import pytest
 
-from ragmax.application.indexing.profiles import list_indexing_profiles
-from ragmax.application.indexing.registry import IndexingProfileRegistry
 from ragmax.application.retrieval.dtos import (
     AnswerCommand,
     GeneratedAnswer,
@@ -156,7 +154,6 @@ async def test_answer_uses_coarse_then_fine_reranking_pipeline() -> None:
         reranker=coarse,
         fine_reranker=fine,
         answer_generator=FakeAnswerGenerator(),
-        profile_registry=IndexingProfileRegistry(list_indexing_profiles()),
         unit_of_work_factory=lambda: FakeUnitOfWork(nodes),
         default_top_k=2,
         max_top_k=100,
@@ -215,7 +212,6 @@ async def test_search_uses_configured_bm25_candidate_limit() -> None:
         reranker=OrderedReranker(name="coarse_reranker", order=("node-1", "node-2")),
         fine_reranker=None,
         answer_generator=FakeAnswerGenerator(),
-        profile_registry=IndexingProfileRegistry(list_indexing_profiles()),
         unit_of_work_factory=lambda: FakeUnitOfWork(nodes),
         default_top_k=2,
         max_top_k=100,

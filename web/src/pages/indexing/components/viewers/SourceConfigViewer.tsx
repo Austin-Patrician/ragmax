@@ -1,5 +1,5 @@
-import { Paper, SimpleGrid, Stack, Text, Group, ThemeIcon, Badge, Divider } from '@mantine/core'
-import { FileCode2, Settings, FileJson, BoxSelect } from 'lucide-react'
+import { Paper, SimpleGrid, Stack, Text, Group, ThemeIcon, Badge } from '@mantine/core'
+import { FileCode2, Settings, FileJson } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ArtifactData } from '@/types'
 
@@ -20,7 +20,7 @@ export function SourceConfigViewer({ data }: SourceConfigViewerProps) {
   }
 
   const metadata = (sourceData as any).metadata || {}
-  const config = (sourceData as any).config || {}
+  const config = (sourceData as any).config || (sourceData as any).effective_config || {}
 
   return (
     <Stack gap="xl">
@@ -30,7 +30,7 @@ export function SourceConfigViewer({ data }: SourceConfigViewerProps) {
         color="blue"
       >
         <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg">
-          <PropertyBox label={t('indexing.effectiveProfile', 'Effective Profile')} value={(sourceData as any).effective_profile} />
+          <PropertyBox label={t('indexing.effectiveChunker', 'Effective Chunker')} value={(sourceData as any).effective_chunker} />
           <PropertyBox label={t('indexing.effectiveParser', 'Effective Parser')} value={(sourceData as any).effective_parser} />
           <PropertyBox label="Source ID" value={(sourceData as any).source_id} isCode />
           <PropertyBox label="Notebook ID" value={(sourceData as any).notebook_id} isCode />

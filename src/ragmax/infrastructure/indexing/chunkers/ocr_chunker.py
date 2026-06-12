@@ -1,12 +1,15 @@
 from ragmax.domain.indexing.blocks import BlockType, ContentBlock
 from ragmax.domain.indexing.documents import SourceDocument
 from ragmax.domain.indexing.entities import IndexNode
-from ragmax.domain.indexing.profiles import IndexingProfile
+from typing import Any
+from ragmax.domain.indexing.tokenization import Tokenizer
 from ragmax.infrastructure.indexing.chunkers.base import BaseChunker
 
 
 class OcrPageChunker(BaseChunker):
-    def chunk(self, document: SourceDocument, profile: IndexingProfile) -> list[IndexNode]:
+    def chunk(
+        self, document: SourceDocument, config: dict[str, Any], tokenizer: Tokenizer
+    ) -> list[IndexNode]:
         nodes: list[IndexNode] = []
         page_groups: dict[int, list[ContentBlock]] = {}
 
@@ -18,17 +21,17 @@ class OcrPageChunker(BaseChunker):
 
         for page_no, blocks in sorted(page_groups.items()):
             page_text = self._non_empty_text(blocks)
-            for chunk in self._split_text(page_text, profile):
+            for chunk in self._split_text(page_text, config, tokenizer):
                 nodes.append(
                     self._make_node(
                         document=document,
-                        profile=profile,
+                        chunker_name="ocr_page", config=config,
                         text=chunk,
                         blocks=blocks,
                         section_path=(),
                         content_type="ocr",
                         metadata={
-                            **self._build_chunk_metadata(chunk, blocks),
+                            **self._build_chunk_metadata(chunk, blocks, tokenizer),
                             "page_no": page_no,
                         },
                     )

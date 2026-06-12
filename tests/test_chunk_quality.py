@@ -16,7 +16,7 @@ from ragmax.domain.indexing.quality import (
 def test_empty_nodes_returns_empty_metrics():
     """Test that empty node list returns appropriate metrics."""
     profile = IndexingProfile(
-        name=IndexingProfileName.DEFAULT_PDF,
+        name=IndexingProfileName.FIXED_TOKEN,
         description="Test",
         chunker="test",
         chunk_size=500,
@@ -64,7 +64,7 @@ def test_min_chunk_ratio_calculation():
     )
 
     profile = IndexingProfile(
-        name=IndexingProfileName.DEFAULT_PDF,
+        name=IndexingProfileName.FIXED_TOKEN,
         description="Test",
         chunker="test",
         chunk_size=500,
@@ -104,7 +104,7 @@ def test_overlap_effectiveness_no_overlap():
     )
 
     profile = IndexingProfile(
-        name=IndexingProfileName.DEFAULT_PDF,
+        name=IndexingProfileName.FIXED_TOKEN,
         description="Test",
         chunker="test",
         chunk_size=500,
@@ -147,7 +147,7 @@ def test_overlap_effectiveness_with_overlap():
     )
 
     profile = IndexingProfile(
-        name=IndexingProfileName.DEFAULT_PDF,
+        name=IndexingProfileName.FIXED_TOKEN,
         description="Test",
         chunker="test",
         chunk_size=500,
@@ -197,7 +197,7 @@ def test_section_coverage():
     )
 
     profile = IndexingProfile(
-        name=IndexingProfileName.DEFAULT_PDF,
+        name=IndexingProfileName.FIXED_TOKEN,
         description="Test",
         chunker="test",
         chunk_size=500,
@@ -249,7 +249,7 @@ def test_table_integrity_no_split():
     )
 
     profile = IndexingProfile(
-        name=IndexingProfileName.DEFAULT_PDF,
+        name=IndexingProfileName.FIXED_TOKEN,
         description="Test",
         chunker="test",
         chunk_size=500,
@@ -295,7 +295,7 @@ def test_table_integrity_with_split():
     )
 
     profile = IndexingProfile(
-        name=IndexingProfileName.DEFAULT_PDF,
+        name=IndexingProfileName.FIXED_TOKEN,
         description="Test",
         chunker="test",
         chunk_size=500,
@@ -354,7 +354,7 @@ def test_parent_child_ratio():
     )
 
     profile = IndexingProfile(
-        name=IndexingProfileName.SECTION_PDF,
+        name=IndexingProfileName.SECTION_AWARE,
         description="Test",
         chunker="section_aware",
         chunk_size=500,
@@ -384,7 +384,7 @@ def test_orphan_child_detection():
     )
 
     profile = IndexingProfile(
-        name=IndexingProfileName.SECTION_PDF,
+        name=IndexingProfileName.SECTION_AWARE,
         description="Test",
         chunker="section_aware",
         chunk_size=500,
@@ -434,7 +434,7 @@ def test_bbox_coverage():
     )
 
     profile = IndexingProfile(
-        name=IndexingProfileName.DEFAULT_PDF,
+        name=IndexingProfileName.FIXED_TOKEN,
         description="Test",
         chunker="test",
         chunk_size=500,
@@ -470,7 +470,7 @@ def test_avg_blocks_per_node():
     )
 
     profile = IndexingProfile(
-        name=IndexingProfileName.DEFAULT_PDF,
+        name=IndexingProfileName.FIXED_TOKEN,
         description="Test",
         chunker="test",
         chunk_size=500,
@@ -498,7 +498,7 @@ def test_quality_thresholds_customization():
     )
 
     profile = IndexingProfile(
-        name=IndexingProfileName.DEFAULT_PDF,
+        name=IndexingProfileName.FIXED_TOKEN,
         description="Test",
         chunker="test",
         chunk_size=500,

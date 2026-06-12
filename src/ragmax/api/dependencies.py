@@ -11,8 +11,6 @@ from ragmax.application.indexing.ports import (
     IndexingUnitOfWork,
     VectorIndexWriter,
 )
-from ragmax.application.indexing.profiles import list_indexing_profiles
-from ragmax.application.indexing.registry import IndexingProfileRegistry
 from ragmax.application.indexing.service import IndexingService
 from ragmax.application.retrieval.fusion_ports import BM25Searcher, SearchFuser
 from ragmax.application.retrieval.ports import AnswerGenerator, Reranker, VectorSearcher
@@ -26,12 +24,10 @@ from ragmax.infrastructure.db.repositories.datasets.dataset_repository import (
 from ragmax.infrastructure.db.repositories.indexing import SqlAlchemyIndexingUnitOfWork
 from ragmax.infrastructure.db.repositories.user_settings import resolve_effective_settings
 from ragmax.infrastructure.db.session import SessionLocal, get_db_session
-from ragmax.infrastructure.indexing.analyzers.heuristic_source_analyzer import (
-    HeuristicSourceAnalyzer,
-)
+from ragmax.infrastructure.indexing.chunkers.fixed_token_chunker import FixedTokenChunker
 from ragmax.infrastructure.indexing.chunkers.ocr_chunker import OcrPageChunker
 from ragmax.infrastructure.indexing.chunkers.section_chunker import SectionAwareChunker
-from ragmax.infrastructure.indexing.chunkers.sentence_chunker import SentenceChunker
+from ragmax.infrastructure.indexing.chunkers.semantic_chunker import SemanticChunker
 from ragmax.infrastructure.indexing.chunkers.table_chunker import TableAwareChunker
 from ragmax.infrastructure.indexing.embeddings.hash_embedding_provider import HashEmbeddingProvider
 from ragmax.infrastructure.indexing.embeddings.openai_embedding_provider import (
@@ -47,6 +43,7 @@ from ragmax.infrastructure.indexing.parsers.simple_directory_reader_parser impor
     SIMPLE_DIRECTORY_READER_EXTENSIONS,
     SimpleDirectoryReaderSourceParser,
 )
+from ragmax.infrastructure.indexing.parsers.mineru_parser import MineruParser
 from ragmax.infrastructure.qdrant.client import create_qdrant_client
 from ragmax.infrastructure.qdrant.vector_index_writer import QdrantVectorIndexWriter
 from ragmax.infrastructure.qdrant.vector_searcher import QdrantVectorSearcher
@@ -112,82 +109,144 @@ def create_indexing_service(
             "embedding_provider and vector_index_writer must be configured together."
         )
 
-    registry = IndexingProfileRegistry(list_indexing_profiles())
+    
     llama_cloud_api_key = (
         settings.llama_cloud_api_key.get_secret_value()
         if settings.llama_cloud_api_key is not None
         else None
     )
+
+    # Build parsers dict
+    parsers = {
+        "inline_content_parser": HeuristicSourceParser(),
+        "simple_directory_reader": SimpleDirectoryReaderSourceParser(),
+        "llamaparse": LlamaParseSourceParser(
+            api_key=llama_cloud_api_key,
+            default_tier=settings.llamaparse_default_tier,
+            default_version=settings.llamaparse_default_version,
+        ),
+    }
+
+    # Add MinerU parser if token is configured
+    mineru_token = (
+        settings.mineru_api_token.get_secret_value()
+        if settings.mineru_api_token is not None
+        else None
+    )
+    if mineru_token:
+        parsers["mineru"] = MineruParser(
+            api_token=mineru_token,
+            api_base_url=settings.mineru_api_base_url,
+            model_version=settings.mineru_model_version,
+            enable_table=settings.mineru_enable_table,
+            enable_formula=settings.mineru_enable_formula,
+            polling_interval=settings.mineru_polling_interval,
+            timeout=settings.mineru_timeout,
+            source_storage_dir=settings.source_storage_dir,
+        )
+
     source_parser_registry = SourceParserRegistry(
-        parsers={
-            "inline_content_parser": HeuristicSourceParser(),
-            "simple_directory_reader": SimpleDirectoryReaderSourceParser(),
-            "llamaparse": LlamaParseSourceParser(
-                api_key=llama_cloud_api_key,
-                default_tier=settings.llamaparse_default_tier,
-                default_version=settings.llamaparse_default_version,
-            ),
-        },
-        specs=(
-            ParserSpec(
-                name="simple_directory_reader",
-                description="Local LlamaIndex SimpleDirectoryReader parser for common files.",
-                supported_extensions=SIMPLE_DIRECTORY_READER_EXTENSIONS,
-                supported_media_types=(
-                    "application/pdf",
-                    "text/plain",
-                    "text/markdown",
-                    "text/csv",
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    "image/jpeg",
-                    "image/png",
+        parsers=parsers,
+        specs=tuple(
+            spec for spec in [
+                ParserSpec(
+                    name="simple_directory_reader",
+                    description="Local LlamaIndex SimpleDirectoryReader parser for common files.",
+                    supported_extensions=SIMPLE_DIRECTORY_READER_EXTENSIONS,
+                    supported_media_types=(
+                        "application/pdf",
+                        "text/plain",
+                        "text/markdown",
+                        "text/csv",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "image/jpeg",
+                        "image/png",
+                    ),
+                    is_default=settings.default_file_parser == "simple_directory_reader",
                 ),
-                is_default=settings.default_file_parser == "simple_directory_reader",
-            ),
-            ParserSpec(
-                name="llamaparse",
-                description=(
-                    "LlamaParse parser for complex documents, tables, OCR, and rich layouts."
+                ParserSpec(
+                    name="llamaparse",
+                    description=(
+                        "LlamaParse parser for complex documents, tables, OCR, and rich layouts."
+                    ),
+                    supported_extensions=LLAMAPARSE_EXTENSIONS,
+                    supported_media_types=(
+                        "application/pdf",
+                        "text/plain",
+                        "text/markdown",
+                        "text/csv",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "image/jpeg",
+                        "image/png",
+                        "text/html",
+                        "audio/mpeg",
+                        "audio/wav",
+                    ),
+                    requires_api_key=True,
+                    is_default=settings.default_file_parser == "llamaparse",
                 ),
-                supported_extensions=LLAMAPARSE_EXTENSIONS,
-                supported_media_types=(
-                    "application/pdf",
-                    "text/plain",
-                    "text/markdown",
-                    "text/csv",
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    "image/jpeg",
-                    "image/png",
-                    "text/html",
-                    "audio/mpeg",
-                    "audio/wav",
+                ParserSpec(
+                    name="mineru",
+                    description="MinerU API parser with multimodal support (VLM-powered).",
+                    supported_extensions=(".pdf", ".docx", ".pptx", ".xlsx", ".png", ".jpg", ".jpeg"),
+                    supported_media_types=(
+                        "application/pdf",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "image/jpeg",
+                        "image/png",
+                    ),
+                    requires_api_key=True,
+                    is_default=settings.default_file_parser == "mineru",
+                ) if mineru_token else None,
+                ParserSpec(
+                    name="inline_content_parser",
+                    description="Internal parser for request text and pre-parsed blocks.",
+                    is_internal=True,
                 ),
-                requires_api_key=True,
-                is_default=settings.default_file_parser == "llamaparse",
-            ),
-            ParserSpec(
-                name="inline_content_parser",
-                description="Internal parser for request text and pre-parsed blocks.",
-                is_internal=True,
-            ),
+            ] if spec is not None
         ),
         default_file_parser=settings.default_file_parser,
         inline_parser="inline_content_parser",
     )
+
+    # VLM and Modal Processor (optional)
+    modal_processor = None
+    if settings.vlm_enabled and settings.vlm_api_key:
+        from ragmax.infrastructure.indexing.vlm import OpenAIVLMProvider
+        from ragmax.infrastructure.indexing.processors import ModalProcessor
+
+        vlm_provider = OpenAIVLMProvider(
+            api_key=settings.vlm_api_key.get_secret_value(),
+            base_url=settings.vlm_base_url,
+            model=settings.vlm_model,
+            temperature=settings.vlm_temperature,
+            max_tokens=settings.vlm_max_tokens,
+        )
+        modal_processor = ModalProcessor(vlm_provider=vlm_provider)
+
+    # Build chunkers dict
+    chunkers = {
+        "fixed_token": FixedTokenChunker(),
+        "section_aware": SectionAwareChunker(),
+        "table_aware": TableAwareChunker(),
+        "ocr_page": OcrPageChunker(),
+    }
+
+    # Add semantic chunker if embedding is enabled
+    if embedding_provider is not None:
+        chunkers["semantic_vector"] = SemanticChunker(embedding_provider)
+
     return IndexingService(
         source_parser_registry=source_parser_registry,
-        source_analyzer=HeuristicSourceAnalyzer(),
-        profile_registry=registry,
-        chunkers={
-            "sentence_splitter": SentenceChunker(),
-            "section_aware": SectionAwareChunker(),
-            "table_aware": TableAwareChunker(),
-            "ocr_page": OcrPageChunker(),
-        },
+        
+        
+        chunkers=chunkers,
         node_enricher=BasicNodeEnricher(),
         embedding_provider=embedding_provider,
         vector_index_writer=vector_index_writer,
@@ -195,6 +254,7 @@ def create_indexing_service(
         or (lambda: SqlAlchemyIndexingUnitOfWork(SessionLocal)),
         artifact_storage=artifact_storage or get_indexing_artifact_storage(settings),
         source_storage=source_storage or get_source_storage_from_settings(settings),
+        modal_processor=modal_processor,
     )
 
 
@@ -283,7 +343,7 @@ def create_retrieval_service(
         reranker=reranker,
         fine_reranker=fine_reranker,
         answer_generator=answer_generator,
-        profile_registry=IndexingProfileRegistry(list_indexing_profiles()),
+        
         unit_of_work_factory=unit_of_work_factory
         or (lambda: SqlAlchemyIndexingUnitOfWork(SessionLocal)),
         default_top_k=settings.retrieval_default_top_k,

@@ -13,11 +13,9 @@ from ragmax.api.auth_dependencies import ROUTE_INDEXING, require_route_permissio
 from ragmax.api.dependencies import get_indexing_service, get_source_storage
 from ragmax.api.v1.indexing import (
     IndexingPreviewResponse,
-    IndexingProfileResponse,
     IndexingSummaryResponse,
     IndexPipelineRunDetailResponse,
     IndexPipelineRunResponse,
-    ProfileOverridesPayload,
     build_indexing_preview_response,
     build_pipeline_run_detail_response,
     build_pipeline_run_response,
@@ -26,7 +24,6 @@ from ragmax.application.indexing.dtos import (
     CreateIndexPipelineRunCommand,
     CreateSourceCommand,
     PreviewIndexingCommand,
-    ProfileOverrides,
     RunIndexJobCommand,
     SourceInputBlock,
 )
@@ -90,10 +87,10 @@ class SourceResponse(BaseModel):
 
 
 class RunIndexJobRequest(BaseModel):
-    profile_name: str | None = None
-    parser_name: str | None = None
-    parser_options: dict[str, Any] = Field(default_factory=dict)
-    overrides: ProfileOverridesPayload = Field(default_factory=ProfileOverridesPayload)
+    parser: str | None = None
+    parser_config: dict[str, Any] = Field(default_factory=dict)
+    chunker: str | None = None
+    chunk_config: dict[str, Any] = Field(default_factory=dict)
     capture_artifacts: bool = False
 
 
@@ -101,11 +98,11 @@ class IndexJobResponse(BaseModel):
     job_id: str
     source_id: str
     status: str
-    requested_profile: str | None
-    effective_profile: str | None
+    requested_chunker: str | None
+    effective_chunker: str | None
     requested_parser: str | None
     effective_parser: str | None
-    overrides: dict[str, Any]
+    config: dict[str, Any]
     summary: dict[str, Any]
     error_message: str | None
     vector_status: str | None
@@ -137,8 +134,9 @@ class IndexNodeResponse(BaseModel):
 class RunIndexJobResponse(BaseModel):
     job: IndexJobResponse
     source: SourceResponse
-    effective_profile: IndexingProfileResponse
     effective_parser: str
+    effective_chunker: str
+    effective_config: dict[str, Any]
     summary: IndexingSummaryResponse
     node_count: int
     pipeline_run_id: str | None = None
@@ -262,14 +260,10 @@ async def preview_source_indexing(
         result = await service.preview(
             PreviewIndexingCommand(
                 source=source,
-                profile_name=request.profile_name,
-                parser_name=request.parser_name,
-                parser_options=request.parser_options,
-                overrides=ProfileOverrides(
-                    chunk_size=request.overrides.chunk_size,
-                    chunk_overlap=request.overrides.chunk_overlap,
-                    options=request.overrides.options,
-                ),
+                parser=request.parser,
+                parser_config=request.parser_config,
+                chunker=request.chunker,
+                chunk_config=request.chunk_config,
             )
         )
     except NotFoundError as exc:
@@ -292,14 +286,10 @@ async def create_source_indexing_run(
         result = await service.create_pipeline_run(
             CreateIndexPipelineRunCommand(
                 source_id=source_id,
-                profile_name=request.profile_name,
-                parser_name=request.parser_name,
-                parser_options=request.parser_options,
-                overrides=ProfileOverrides(
-                    chunk_size=request.overrides.chunk_size,
-                    chunk_overlap=request.overrides.chunk_overlap,
-                    options=request.overrides.options,
-                ),
+                parser=request.parser,
+                parser_config=request.parser_config,
+                chunker=request.chunker,
+                chunk_config=request.chunk_config,
             )
         )
     except NotFoundError as exc:
@@ -332,14 +322,10 @@ async def run_source_indexing(
     try:
         command = RunIndexJobCommand(
             source_id=source_id,
-            profile_name=request.profile_name,
-            parser_name=request.parser_name,
-            parser_options=request.parser_options,
-            overrides=ProfileOverrides(
-                chunk_size=request.overrides.chunk_size,
-                chunk_overlap=request.overrides.chunk_overlap,
-                options=request.overrides.options,
-            )
+            parser=request.parser,
+            parser_config=request.parser_config,
+            chunker=request.chunker,
+            chunk_config=request.chunk_config,
         )
         result = (
             await service.run_index_job_with_artifacts(command)
@@ -356,10 +342,9 @@ async def run_source_indexing(
     return RunIndexJobResponse(
         job=_job_response(result.job),
         source=_source_response(result.source),
-        effective_profile=IndexingProfileResponse.model_validate(
-            result.effective_profile.to_dict()
-        ),
         effective_parser=result.effective_parser,
+        effective_chunker=result.effective_chunker,
+        effective_config=result.effective_config,
         summary=IndexingSummaryResponse.model_validate(asdict(result.summary)),
         node_count=len(result.nodes),
         pipeline_run_id=result.pipeline_run.run_id if result.pipeline_run else None,
@@ -430,11 +415,11 @@ def _job_response(job: IndexJobRecord) -> IndexJobResponse:
         job_id=job.job_id,
         source_id=job.source_id,
         status=job.status.value,
-        requested_profile=job.requested_profile,
-        effective_profile=job.effective_profile,
+        requested_chunker=job.requested_chunker,
+        effective_chunker=job.effective_chunker,
         requested_parser=job.requested_parser,
         effective_parser=job.effective_parser,
-        overrides=job.overrides,
+        config=job.config,
         summary=job.summary,
         error_message=job.error_message,
         vector_status=job.vector_status,

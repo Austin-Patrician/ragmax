@@ -6,10 +6,10 @@ enabling data-driven optimization of indexing strategies.
 """
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from ragmax.domain.indexing.blocks import BlockType, ContentBlock
 from ragmax.domain.indexing.entities import IndexNode
-from ragmax.domain.indexing.profiles import IndexingProfile, NodeGraphMode
 
 
 @dataclass(frozen=True)
@@ -112,7 +112,7 @@ class QualityThresholds:
 def calculate_chunk_quality(
     nodes: tuple[IndexNode, ...],
     blocks: tuple[ContentBlock, ...],
-    profile: IndexingProfile,
+    chunk_config: dict[str, Any],
     thresholds: QualityThresholds | None = None,
 ) -> ChunkQualityMetrics:
     """
@@ -121,7 +121,7 @@ def calculate_chunk_quality(
     Args:
         nodes: All IndexNodes
         blocks: Original ContentBlocks (for block reuse calculation)
-        profile: Indexing profile used (for theoretical vs actual comparison)
+        chunk_config: Chunking configuration dict
         thresholds: Warning thresholds configuration
 
     Returns:
@@ -133,6 +133,10 @@ def calculate_chunk_quality(
     thresholds = thresholds or QualityThresholds()
     warnings: list[str] = []
 
+    # Extract config values
+    chunk_size = chunk_config.get("chunk_size", 1000)
+    chunk_overlap = chunk_config.get("chunk_overlap", 100)
+
     # 1. Basic length statistics
     lengths = [len(node.text) for node in nodes]
     min_chunk_ratio = sum(1 for l in lengths if l < thresholds.min_chunk_length) / len(lengths)
@@ -142,15 +146,15 @@ def calculate_chunk_quality(
     if min_chunk_ratio > 0.1:
         warnings.append(
             f"⚠️ {min_chunk_ratio*100:.1f}% chunks < {thresholds.min_chunk_length} chars, "
-            f"consider increasing chunk_size (current: {profile.chunk_size})"
+            f"consider increasing chunk_size (current: {chunk_size})"
         )
 
     # 2. Overlap effectiveness
-    overlap_stats = _calculate_overlap_effectiveness(nodes, profile.chunk_overlap)
+    overlap_stats = _calculate_overlap_effectiveness(nodes, chunk_overlap)
     if overlap_stats["effectiveness"] < thresholds.min_overlap_effectiveness:
         warnings.append(
             f"⚠️ Overlap effectiveness only {overlap_stats['effectiveness']*100:.0f}%, "
-            f"configured {profile.chunk_overlap} chars overlap not fully effective"
+            f"configured {chunk_overlap} chars overlap not fully effective"
         )
 
     # 3. Section integrity
@@ -183,7 +187,10 @@ def calculate_chunk_quality(
     single_block_ratio = sum(1 for node in nodes if len(node.block_ids) == 1) / len(nodes)
 
     # 6. Parent-child quality
-    parent_child_stats = _analyze_parent_child_structure(nodes, profile.node_graph_mode)
+    parent_child_stats = _analyze_parent_child_structure(
+        nodes,
+        node_graph_mode=str(chunk_config.get("node_graph_mode") or "flat"),
+    )
     if parent_child_stats["orphan_child_count"] > 0:
         warnings.append(
             f"❌ {parent_child_stats['orphan_child_count']} child nodes have invalid parent_node_id"
@@ -328,10 +335,10 @@ def _analyze_table_integrity(
 
 def _analyze_parent_child_structure(
     nodes: tuple[IndexNode, ...],
-    node_graph_mode: NodeGraphMode,
+    node_graph_mode: str,
 ) -> dict:
     """Analyze parent-child structure quality."""
-    if node_graph_mode != NodeGraphMode.PARENT_CHILD:
+    if node_graph_mode != "parent_child":
         return {"ratio": None, "orphan_child_count": 0}
 
     parent_ids = {node.node_id for node in nodes if node.content_type == "section"}

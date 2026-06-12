@@ -1,9 +1,8 @@
 from dataclasses import replace
-from typing import cast
+from typing import Any, cast
 
 from ragmax.domain.indexing.documents import SourceDocument
 from ragmax.domain.indexing.entities import IndexNode
-from ragmax.domain.indexing.profiles import IndexingProfile
 
 
 class BasicNodeEnricher:
@@ -11,9 +10,10 @@ class BasicNodeEnricher:
         self,
         nodes: list[IndexNode] | tuple[IndexNode, ...],
         document: SourceDocument,
-        profile: IndexingProfile,
+        config: dict[str, Any],
     ) -> list[IndexNode]:
         enriched_nodes: list[IndexNode] = []
+        chunker = str(config.get("chunker") or config.get("chunker_name") or "")
         for node in nodes:
             metadata = dict(node.metadata)
             if not metadata.get("page_numbers") and node.page_start is not None:
@@ -23,9 +23,8 @@ class BasicNodeEnricher:
                 {
                     "source_filename": document.filename,
                     "media_type": document.media_type,
-                    "profile_chunker": profile.chunker,
+                    "chunker": chunker or node.indexing_profile,
                 }
             )
             enriched_nodes.append(replace(node, metadata=cast(dict[str, object], metadata)))
         return enriched_nodes
-

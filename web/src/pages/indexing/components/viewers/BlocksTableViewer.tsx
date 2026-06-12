@@ -1,5 +1,5 @@
 import { Badge, Box, Group, Paper, Stack, Text, ThemeIcon, TextInput, Loader, Center } from '@mantine/core'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Type, AlignLeft, Table as TableIcon, Search, Hash } from 'lucide-react'
 import type { ArtifactData } from '@/types'

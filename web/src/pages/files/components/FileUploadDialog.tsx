@@ -2,10 +2,14 @@ import type { ChangeEvent, DragEvent, InputHTMLAttributes } from 'react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
-import { FileText, FolderUp, UploadCloud } from 'lucide-react'
+import { FileText, FolderUp, UploadCloud, Settings } from 'lucide-react'
 import { runSourceIndexing, uploadSource } from '@/api/indexing'
 import { queryKeys } from '@/hooks/queryKeys'
 import { sourceKeys } from '@/hooks/useSources'
+import { IndexingConfigForm } from '@/components/indexing/IndexingConfigForm'
+import type { IndexingConfig } from '@/types/indexing'
+import { INDEXING_PRESETS } from '@/config/indexing-presets'
+import type { RunSourceIndexingInput } from '@/types'
 import classes from './FileUploadDialog.module.css'
 
 interface FileUploadDialogProps {
@@ -27,9 +31,12 @@ export function FileUploadDialog({ isOpen, onClose }: FileUploadDialogProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [captureArtifacts, setCaptureArtifacts] = useState(false)
   const [processedCount, setProcessedCount] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
+  const [showConfig, setShowConfig] = useState(false)
+  const [indexingConfig, setIndexingConfig] = useState<IndexingConfig>(
+    INDEXING_PRESETS.default.config
+  )
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
@@ -41,9 +48,10 @@ export function FileUploadDialog({ isOpen, onClose }: FileUploadDialogProps) {
     setSelectedFiles([])
     setIsDragging(false)
     setUploading(false)
-    setCaptureArtifacts(false)
     setProcessedCount(0)
     setErrorMessage('')
+    setShowConfig(false)
+    setIndexingConfig(INDEXING_PRESETS.default.config)
   }
 
   const closeDialog = () => {
@@ -105,10 +113,19 @@ export function FileUploadDialog({ isOpen, onClose }: FileUploadDialogProps) {
           notebookId: 'default',
           metadata: JSON.stringify(uploadMetadata(file, mode)),
         })
-        await runSourceIndexing({
+
+        const request: RunSourceIndexingInput = {
           sourceId: source.source_id,
-          capture_artifacts: captureArtifacts,
-        })
+        }
+        if (indexingConfig.parser !== undefined) request.parser = indexingConfig.parser
+        if (indexingConfig.parser_config !== undefined) request.parser_config = indexingConfig.parser_config
+        if (indexingConfig.chunker !== undefined) request.chunker = indexingConfig.chunker
+        if (indexingConfig.chunk_config !== undefined) request.chunk_config = indexingConfig.chunk_config
+        if (indexingConfig.capture_artifacts !== undefined) {
+          request.capture_artifacts = indexingConfig.capture_artifacts
+        }
+
+        await runSourceIndexing(request)
         setProcessedCount((current) => current + 1)
       }
       await queryClient.invalidateQueries({ queryKey: sourceKeys.all })
@@ -222,20 +239,23 @@ export function FileUploadDialog({ isOpen, onClose }: FileUploadDialogProps) {
             type="file"
           />
 
-          <label className={classes.artifactToggle}>
-            <input
-              checked={captureArtifacts}
-              disabled={uploading}
-              onChange={(event) => setCaptureArtifacts(event.currentTarget.checked)}
-              type="checkbox"
-            />
-            <span className={classes.switchTrack} aria-hidden="true">
-              <span className={classes.switchThumb} />
-            </span>
-            <span className={classes.artifactToggleText}>
-              {t('files.generate_indexing_artifacts', 'Generate indexing artifacts')}
-            </span>
-          </label>
+          {/* 配置切换按钮 */}
+          <button
+            className={classes.configToggle}
+            onClick={() => setShowConfig(!showConfig)}
+            type="button"
+            disabled={uploading}
+          >
+            <Settings size={16} />
+            {showConfig ? '隐藏索引配置' : '显示索引配置'}
+          </button>
+
+          {/* 索引配置表单 */}
+          {showConfig && (
+            <div className={classes.configSection}>
+              <IndexingConfigForm value={indexingConfig} onChange={setIndexingConfig} />
+            </div>
+          )}
 
           {errorMessage ? <p className={classes.error}>{errorMessage}</p> : null}
           {uploading ? (

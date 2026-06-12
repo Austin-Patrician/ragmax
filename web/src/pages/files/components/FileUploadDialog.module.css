@@ -216,6 +216,47 @@
   opacity: 0.5;
 }
 
+.configToggle {
+  align-items: center;
+  background: #f5f5f6;
+  border: 1px solid #e3e4e6;
+  border-radius: 6px;
+  color: #444950;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 620;
+  gap: 8px;
+  height: 32px;
+  margin-top: 12px;
+  padding: 0 12px;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.configToggle:hover:not(:disabled) {
+  background: #ececed;
+  border-color: #d1d2d4;
+  color: #2a2d32;
+}
+
+.configToggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.configSection {
+  background: #fafbfc;
+  border: 1px solid #e8e9eb;
+  border-radius: 6px;
+  margin-top: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 16px;
+}
+
 .error,
 .progress {
   font-size: 13px;

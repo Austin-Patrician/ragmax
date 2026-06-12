@@ -29,14 +29,11 @@ from ragmax.application.indexing.ports import (
     IndexingUnitOfWork,
     VectorIndexWriter,
 )
-from ragmax.application.indexing.registry import IndexingProfileRegistry
 from ragmax.core.exceptions import ConfigurationError, InvalidRequestError, NotFoundError
-from ragmax.domain.indexing.analysis import IndexingSummary
 from ragmax.domain.indexing.blocks import ContentBlock
 from ragmax.domain.indexing.documents import SourceDocument
 from ragmax.domain.indexing.entities import IndexNode
-from ragmax.domain.indexing.ports import Chunker, NodeEnricher, SourceAnalyzer
-from ragmax.domain.indexing.profiles import IndexingProfile, IndexingProfileName, NodeGraphMode
+from ragmax.domain.indexing.ports import Chunker, NodeEnricher
 from ragmax.domain.indexing.quality import QualityThresholds, calculate_chunk_quality
 from ragmax.domain.indexing.records import (
     INDEXING_STAGE_ORDER,
@@ -51,6 +48,7 @@ from ragmax.domain.indexing.records import (
     IndexStageStatus,
     SourceRecord,
 )
+from ragmax.domain.indexing.summary import IndexingSummary
 
 IndexingUnitOfWorkFactory = Callable[[], IndexingUnitOfWork]
 logger = logging.getLogger(__name__)
@@ -61,8 +59,6 @@ class IndexingService:
         self,
         *,
         source_parser_registry: SourceParserRegistry,
-        source_analyzer: SourceAnalyzer,
-        profile_registry: IndexingProfileRegistry,
         chunkers: Mapping[str, Chunker],
         node_enricher: NodeEnricher,
         embedding_provider: EmbeddingProvider | None = None,
@@ -70,10 +66,9 @@ class IndexingService:
         unit_of_work_factory: IndexingUnitOfWorkFactory | None = None,
         artifact_storage: Any | None = None,
         source_storage: Any | None = None,
+        modal_processor: Any | None = None,
     ) -> None:
         self._source_parser_registry = source_parser_registry
-        self._source_analyzer = source_analyzer
-        self._profile_registry = profile_registry
         self._chunkers = dict(chunkers)
         self._node_enricher = node_enricher
         self._embedding_provider = embedding_provider
@@ -81,12 +76,22 @@ class IndexingService:
         self._unit_of_work_factory = unit_of_work_factory
         self._artifact_storage = artifact_storage
         self._source_storage = source_storage
-
-    def list_profiles(self):
-        return self._profile_registry.list()
+        self._modal_processor = modal_processor
 
     def list_parsers(self):
         return self._source_parser_registry.list()
+
+    def _create_tokenizer(self, model_name: str):
+        """创建Tokenizer实例用于精确的Token级别文本处理
+
+        Args:
+            model_name: Tokenizer模型名称，如 "cl100k_base"
+
+        Returns:
+            Tokenizer实例
+        """
+        from ragmax.domain.indexing.tokenization import TiktokenTokenizer
+        return TiktokenTokenizer(model_name)
 
     async def preview(self, command: PreviewIndexingCommand) -> PreviewIndexingResult:
         return await self._build_preview(command)
@@ -123,15 +128,30 @@ class IndexingService:
     ) -> IndexPipelineRunResult:
         self._ensure_persistence_configured()
         source = await self._get_source_or_raise(command.source_id)
+
+        # 导入默认配置
+        from ragmax.core.defaults import (
+            DEFAULT_CHUNKER,
+            get_default_chunk_config,
+            get_default_parser,
+        )
+
+        # 解析配置
+        parser = command.parser or get_default_parser(source.media_type)
+        parser_config = command.parser_config or {}
+        chunker = command.chunker or DEFAULT_CHUNKER
+        chunk_config = command.chunk_config or get_default_chunk_config(chunker)
+
+        # 创建run record
         run = IndexPipelineRunRecord(
             run_id=f"run_{uuid4().hex}",
             source_id=source.source_id,
             status=IndexPipelineStatus.PENDING,
-            requested_profile=command.profile_name,
-            requested_parser=command.parser_name,
-            overrides={
-                "profile": asdict(command.overrides),
-                "parser_options": command.parser_options,
+            config={
+                "parser": parser,
+                "parser_config": parser_config,
+                "chunker": chunker,
+                "chunk_config": chunk_config,
             },
             created_at=datetime.now(UTC),
         )
@@ -267,11 +287,13 @@ class IndexingService:
             job_id=f"job_{uuid4().hex}",
             source_id=source.source_id,
             status=IndexJobStatus.RUNNING,
-            requested_profile=command.profile_name,
-            requested_parser=command.parser_name,
-            overrides={
-                "profile": asdict(command.overrides),
-                "parser_options": command.parser_options,
+            requested_chunker=command.chunker,
+            requested_parser=command.parser,
+            config={
+                "parser": command.parser,
+                "parser_config": command.parser_config,
+                "chunker": command.chunker,
+                "chunk_config": command.chunk_config,
             },
             started_at=datetime.now(UTC),
         )
@@ -286,17 +308,17 @@ class IndexingService:
             preview_result = await self._build_preview(
                 PreviewIndexingCommand(
                     source=self._source_input_from_record(source),
-                    profile_name=command.profile_name,
-                    parser_name=command.parser_name,
-                    parser_options=command.parser_options,
-                    overrides=command.overrides,
+                    parser=command.parser,
+                    parser_config=command.parser_config,
+                    chunker=command.chunker,
+                    chunk_config=command.chunk_config,
                 )
             )
             vector_status = "running"
             vector_started_at = perf_counter()
             indexed_nodes, vector_status, vector_count = await self._index_vectors_if_enabled(
                 nodes=preview_result.nodes,
-                profile=preview_result.effective_profile,
+                collection_name="ragmax_text_nodes",
             )
             vector_ms = _elapsed_ms(vector_started_at)
         except Exception as exc:
@@ -331,15 +353,14 @@ class IndexingService:
             if self._embedding_provider is not None
             else None,
             "node_count": vector_count,
-            "collection": preview_result.effective_profile.text_collection
-            if vector_status == "succeeded"
-            else None,
+            "collection": "ragmax_text_nodes" if vector_status == "succeeded" else None,
         }
         succeeded_job = replace(
             job,
             status=IndexJobStatus.SUCCEEDED,
-            effective_profile=preview_result.effective_profile.name.value,
+            effective_chunker=preview_result.effective_chunker,
             effective_parser=preview_result.effective_parser,
+            config=preview_result.effective_config,
             summary=summary_dict,
             vector_status=vector_status,
             node_count=len(indexed_nodes),
@@ -366,8 +387,9 @@ class IndexingService:
         return RunIndexJobResult(
             job=succeeded_job,
             source=source,
-            effective_profile=preview_result.effective_profile,
             effective_parser=preview_result.effective_parser,
+            effective_chunker=preview_result.effective_chunker,
+            effective_config=preview_result.effective_config,
             nodes=indexed_nodes,
             summary=succeeded_summary,
         )
@@ -385,10 +407,10 @@ class IndexingService:
             pipeline = await self.create_pipeline_run(
                 CreateIndexPipelineRunCommand(
                     source_id=command.source_id,
-                    profile_name=command.profile_name,
-                    parser_name=command.parser_name,
-                    parser_options=command.parser_options,
-                    overrides=command.overrides,
+                    parser=command.parser,
+                    parser_config=command.parser_config,
+                    chunker=command.chunker,
+                    chunk_config=command.chunk_config,
                 )
             )
             run = pipeline.run
@@ -612,8 +634,6 @@ class IndexingService:
             }, {}
         if stage == IndexingStage.PARSE_BLOCKS:
             return await self._execute_parse_stage(run, source, stage_run)
-        if stage == IndexingStage.ANALYZE_PROFILE:
-            return await self._execute_analyze_stage(run, stage_run)
         if stage == IndexingStage.CHUNK_NODES:
             return await self._execute_chunk_stage(run, stage_run)
         if stage == IndexingStage.QUALITY_ENRICH:
@@ -645,15 +665,23 @@ class IndexingService:
         source: SourceRecord,
         stage_run: IndexStageRunRecord,
     ) -> tuple[list[tuple[str, Any]], dict[str, Any], dict[str, Any]]:
+        # 从config中获取parser配置
+        parser_name = run.config.get("parser")
+        parser_config = run.config.get("parser_config", {})
+
         resolved_parser = self._source_parser_registry.resolve(
             source=self._source_input_from_record(source),
-            requested_parser=run.requested_parser,
+            requested_parser=parser_name,
         )
-        parser_options = dict((run.overrides or {}).get("parser_options") or {})
         document = await resolved_parser.parser.parse(
             self._source_input_from_record(source),
-            parser_options,
+            parser_config,
         )
+
+        # VLM enhancement (optional)
+        if self._modal_processor and self._should_enhance_with_vlm(document):
+            document = await self._enhance_document_with_vlm(document)
+
         block_records = [_content_block_artifact(block) for block in document.blocks]
         document_payload = _source_document_artifact(document)
         stored_blocks = self._artifact_storage.write_jsonl(
@@ -682,43 +710,8 @@ class IndexingService:
         return (
             [("blocks", stored_blocks), ("document", stored_document)],
             summary,
-            {"effective_parser": resolved_parser.name},
+            {},
         )
-
-    async def _execute_analyze_stage(
-        self,
-        run: IndexPipelineRunRecord,
-        stage_run: IndexStageRunRecord,
-    ) -> tuple[list[tuple[str, Any]], dict[str, Any], dict[str, Any]]:
-        document = await self._document_from_latest_artifacts(run.run_id)
-        analysis = self._source_analyzer.analyze(document, self._profile_registry.list())
-        profile_name = run.requested_profile or analysis.recommended_profile.value
-        effective_profile = self._profile_registry.resolve(
-            profile_name,
-            _profile_overrides_from_run(run),
-        )
-        payload = {
-            "recommended_profile": analysis.recommended_profile.value,
-            "reasons": list(analysis.reasons),
-            "traits": analysis.traits,
-            "effective_profile": effective_profile.to_dict(),
-        }
-        stored = self._artifact_storage.write_json(
-            source_id=document.source_id,
-            run_id=run.run_id,
-            stage_run_id=stage_run.stage_run_id,
-            stage_name=IndexingStage.ANALYZE_PROFILE.value,
-            artifact_type="profile_analysis",
-            payload=payload,
-        )
-        summary = {
-            "recommended_profile": analysis.recommended_profile.value,
-            "effective_profile": effective_profile.name.value,
-            "reason_count": len(analysis.reasons),
-        }
-        return [("profile_analysis", stored)], summary, {
-            "effective_profile": effective_profile.name.value
-        }
 
     async def _execute_chunk_stage(
         self,
@@ -726,14 +719,31 @@ class IndexingService:
         stage_run: IndexStageRunRecord,
     ) -> tuple[list[tuple[str, Any]], dict[str, Any], dict[str, Any]]:
         document = await self._document_from_latest_artifacts(run.run_id)
-        effective_profile = await self._effective_profile_from_latest_artifacts(run.run_id)
-        chunker = self._chunkers.get(effective_profile.chunker)
+
+        # 从config中获取chunker配置
+        chunker_name = run.config.get("chunker")
+        chunk_config = run.config.get("chunk_config", {})
+
+        chunker = self._chunkers.get(chunker_name)
         if chunker is None:
             raise ConfigurationError(
-                f"Chunker '{effective_profile.chunker}' is not registered for profile "
-                f"'{effective_profile.name.value}'."
+                f"Chunker '{chunker_name}' is not registered."
             )
-        nodes = tuple(chunker.chunk(document, effective_profile))
+
+        # 创建tokenizer用于精确的Token级别处理
+        tokenizer = self._create_tokenizer(
+            chunk_config.get("tokenizer_model", "cl100k_base")
+        )
+
+        # 传递config和tokenizer给chunker
+        nodes = tuple(chunker.chunk(document, chunk_config, tokenizer))
+
+        # 在node metadata中添加tokenizer信息
+        nodes = tuple(
+            replace(node, metadata={**node.metadata, "tokenizer_model": tokenizer.model_name})
+            for node in nodes
+        )
+
         stored = self._artifact_storage.write_jsonl(
             source_id=document.source_id,
             run_id=run.run_id,
@@ -745,9 +755,10 @@ class IndexingService:
         )
         summary = {
             "node_count": len(nodes),
-            "chunker": effective_profile.chunker,
-            "chunk_size": effective_profile.chunk_size,
-            "chunk_overlap": effective_profile.chunk_overlap,
+            "chunker": chunker_name,
+            "chunk_size": chunk_config.get("chunk_size"),
+            "chunk_overlap": chunk_config.get("chunk_overlap"),
+            "tokenizer_model": tokenizer.model_name,
         }
         return [("raw_nodes", stored)], summary, {}
 
@@ -757,17 +768,18 @@ class IndexingService:
         stage_run: IndexStageRunRecord,
     ) -> tuple[list[tuple[str, Any]], dict[str, Any], dict[str, Any]]:
         document = await self._document_from_latest_artifacts(run.run_id)
-        effective_profile = await self._effective_profile_from_latest_artifacts(run.run_id)
+        chunk_config = run.config.get("chunk_config", {})
         raw_nodes = await self._nodes_from_latest_artifacts(
             run.run_id,
             IndexingStage.CHUNK_NODES,
             "raw_nodes",
         )
-        enriched_nodes = tuple(self._node_enricher.enrich(raw_nodes, document, effective_profile))
+        # NodeEnricher不再需要profile，传递chunk_config
+        enriched_nodes = tuple(self._node_enricher.enrich(raw_nodes, document, chunk_config))
         quality_metrics = calculate_chunk_quality(
             nodes=enriched_nodes,
             blocks=document.blocks,
-            profile=effective_profile,
+            chunk_config=chunk_config,
             thresholds=QualityThresholds(),
         )
         summary = IndexingSummary.from_nodes(
@@ -806,16 +818,19 @@ class IndexingService:
         stage_run: IndexStageRunRecord,
     ) -> tuple[list[tuple[str, Any]], dict[str, Any], dict[str, Any]]:
         document = await self._document_from_latest_artifacts(run.run_id)
-        effective_profile = await self._effective_profile_from_latest_artifacts(run.run_id)
         enriched_nodes = await self._nodes_from_latest_artifacts(
             run.run_id,
             IndexingStage.QUALITY_ENRICH,
             "enriched_nodes",
         )
+
+        # 固定collection名称
+        COLLECTION_NAME = "ragmax_text_nodes"
+
         vector_started_at = perf_counter()
         indexed_nodes, vector_status, vector_count = await self._index_vectors_if_enabled(
             nodes=enriched_nodes,
-            profile=effective_profile,
+            collection_name=COLLECTION_NAME,
         )
         vector_ms = _elapsed_ms(vector_started_at)
         persisted_summary = await self._persist_pipeline_latest_index(
@@ -823,7 +838,7 @@ class IndexingService:
             source=source,
             document=document,
             nodes=indexed_nodes,
-            profile=effective_profile,
+            collection_name=COLLECTION_NAME,
             vector_status=vector_status,
             vector_count=vector_count,
             vector_ms=vector_ms,
@@ -833,7 +848,7 @@ class IndexingService:
             "embedding_model": self._embedding_provider.model_name
             if self._embedding_provider is not None
             else None,
-            "collection": effective_profile.text_collection
+            "collection": COLLECTION_NAME
             if vector_status == "succeeded"
             else None,
             "vectorized_node_ids": [
@@ -869,12 +884,6 @@ class IndexingService:
             limit=max(blocks_manifest.record_count, 1),
         )
         return _source_document_from_artifacts(document_payload, block_records)
-
-    async def _effective_profile_from_latest_artifacts(self, run_id: str) -> IndexingProfile:
-        manifests = await self._latest_artifacts_by_stage(run_id, IndexingStage.ANALYZE_PROFILE)
-        analysis_manifest = _find_manifest(manifests, "profile_analysis")
-        payload = self._artifact_storage.read_json(analysis_manifest.storage_uri)
-        return _profile_from_payload(payload["effective_profile"])
 
     async def _nodes_from_latest_artifacts(
         self,
@@ -914,7 +923,7 @@ class IndexingService:
         source: SourceRecord,
         document: SourceDocument,
         nodes: tuple[IndexNode, ...],
-        profile: IndexingProfile,
+        collection_name: str,
         vector_status: str,
         vector_count: int,
         vector_ms: float,
@@ -933,17 +942,22 @@ class IndexingService:
             if self._embedding_provider is not None
             else None,
             "node_count": vector_count,
-            "collection": profile.text_collection if vector_status == "succeeded" else None,
+            "collection": collection_name if vector_status == "succeeded" else None,
         }
+
+        # 从run.config提取配置信息
+        chunker = run.config.get("chunker", "unknown")
+        parser = run.config.get("parser", "unknown")
+
         job = IndexJobRecord(
             job_id=f"job_{uuid4().hex}",
             source_id=source.source_id,
             status=IndexJobStatus.SUCCEEDED,
-            requested_profile=run.requested_profile,
-            effective_profile=profile.name.value,
-            requested_parser=run.requested_parser,
-            effective_parser=run.effective_parser,
-            overrides=run.overrides,
+            requested_chunker=chunker,
+            effective_chunker=chunker,
+            requested_parser=parser,
+            effective_parser=parser,
+            config=run.config,
             summary=summary_dict,
             vector_status=vector_status,
             node_count=len(nodes),
@@ -986,12 +1000,12 @@ class IndexingService:
                 raise NotFoundError(f"Index job not found: {job_id}")
             nodes = await uow.nodes.list_by_job(job_id)
 
-        effective_profile = await self._effective_profile_from_latest_artifacts(run.run_id)
         return RunIndexJobResult(
             job=job,
             source=source,
-            effective_profile=effective_profile,
-            effective_parser=job.effective_parser or run.effective_parser or "",
+            effective_parser=job.effective_parser or str(run.config.get("parser") or ""),
+            effective_chunker=job.effective_chunker or str(run.config.get("chunker") or ""),
+            effective_config=job.config,
             nodes=nodes,
             summary=_summary_from_payload(job.summary),
             pipeline_run=run,
@@ -1104,7 +1118,7 @@ class IndexingService:
         self,
         *,
         nodes: tuple[IndexNode, ...],
-        profile,
+        collection_name: str,
     ) -> tuple[tuple[IndexNode, ...], str, int]:
         if self._embedding_provider is None or self._vector_index_writer is None:
             return nodes, "skipped", 0
@@ -1121,7 +1135,7 @@ class IndexingService:
 
         vector_status = "failed"
         vector_records = await self._vector_index_writer.upsert_nodes(
-            collection_name=profile.text_collection,
+            collection_name=collection_name,
             nodes=vector_nodes,
             embeddings=embeddings,
             embedding_model=self._embedding_provider.model_name,
@@ -1156,11 +1170,10 @@ class IndexingService:
         if self._vector_index_writer is None:
             return 0
 
-        deleted_count = 0
-        collection_names = {profile.text_collection for profile in self._profile_registry.list()}
-        for collection_name in collection_names:
-            deleted_count += await self._vector_index_writer.delete_source(
-                collection_name=collection_name,
+        # 固定collection名称
+        COLLECTION_NAME = "ragmax_text_nodes"
+        deleted_count = await self._vector_index_writer.delete_source(
+                collection_name=COLLECTION_NAME,
                 source_id=source_id,
             )
         return deleted_count
@@ -1193,37 +1206,45 @@ class IndexingService:
             )
 
     async def _build_preview(self, command: PreviewIndexingCommand) -> PreviewIndexingResult:
-        if command.profile_name is not None:
-            self._profile_registry.get(command.profile_name)
+        from ragmax.core.defaults import (
+            DEFAULT_CHUNKER,
+            get_default_chunk_config,
+            get_default_parser,
+        )
+
+        # 解析配置
+        parser_name = command.parser or get_default_parser(command.source.media_type)
+        parser_config = command.parser_config or {}
+        chunker_name = command.chunker or DEFAULT_CHUNKER
+        chunk_config = command.chunk_config or get_default_chunk_config(chunker_name)
+
         resolved_parser = self._source_parser_registry.resolve(
             source=command.source,
-            requested_parser=command.parser_name,
+            requested_parser=parser_name,
         )
+
         started_at = perf_counter()
         parse_started_at = perf_counter()
-        document = await resolved_parser.parser.parse(command.source, command.parser_options)
+        document = await resolved_parser.parser.parse(command.source, parser_config)
         parse_ms = _elapsed_ms(parse_started_at)
 
-        analyze_started_at = perf_counter()
-        analysis = self._source_analyzer.analyze(document, self._profile_registry.list())
-        analyze_ms = _elapsed_ms(analyze_started_at)
+        # VLM enhancement (optional)
+        if self._modal_processor and self._should_enhance_with_vlm(document):
+            document = await self._enhance_document_with_vlm(document)
 
-        profile_name = command.profile_name or analysis.recommended_profile.value
-        effective_profile = self._profile_registry.resolve(profile_name, command.overrides)
-
-        chunker = self._chunkers.get(effective_profile.chunker)
+        chunker = self._chunkers.get(chunker_name)
         if chunker is None:
             raise ConfigurationError(
-                f"Chunker '{effective_profile.chunker}' is not registered for profile "
-                f"'{effective_profile.name.value}'."
+                f"Chunker '{chunker_name}' is not registered."
             )
 
         chunk_started_at = perf_counter()
-        nodes = chunker.chunk(document, effective_profile)
+        tokenizer = self._create_tokenizer(chunk_config.get("tokenizer_model", "cl100k_base"))
+        nodes = chunker.chunk(document, chunk_config, tokenizer)
         chunk_ms = _elapsed_ms(chunk_started_at)
 
         enrich_started_at = perf_counter()
-        enriched_nodes = tuple(self._node_enricher.enrich(nodes, document, effective_profile))
+        enriched_nodes = tuple(self._node_enricher.enrich(nodes, document, chunk_config))
         enrich_ms = _elapsed_ms(enrich_started_at)
 
         # Calculate chunk quality metrics
@@ -1231,7 +1252,7 @@ class IndexingService:
         quality_metrics = calculate_chunk_quality(
             nodes=enriched_nodes,
             blocks=document.blocks,
-            profile=effective_profile,
+            chunk_config=chunk_config,
             thresholds=QualityThresholds(),
         )
         quality_ms = _elapsed_ms(quality_started_at)
@@ -1242,7 +1263,6 @@ class IndexingService:
             nodes=enriched_nodes,
             performance={
                 "parse_ms": parse_ms,
-                "analyze_ms": analyze_ms,
                 "chunk_ms": chunk_ms,
                 "enrich_ms": enrich_ms,
                 "quality_ms": quality_ms,
@@ -1252,9 +1272,14 @@ class IndexingService:
         )
 
         return PreviewIndexingResult(
-            analysis=analysis,
-            effective_profile=effective_profile,
             effective_parser=resolved_parser.name,
+            effective_chunker=chunker_name,
+            effective_config={
+                "parser": parser_name,
+                "parser_config": parser_config,
+                "chunker": chunker_name,
+                "chunk_config": chunk_config,
+            },
             document=document,
             nodes=enriched_nodes,
             summary=summary,
@@ -1314,6 +1339,56 @@ class IndexingService:
         }
         encoded_payload = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
         return hashlib.sha256(encoded_payload).hexdigest()
+
+    def _should_enhance_with_vlm(self, document: SourceDocument) -> bool:
+        """Check if document has multimodal content worth enhancing."""
+        from ragmax.domain.indexing.blocks import BlockType
+        multimodal_types = {BlockType.IMAGE, BlockType.TABLE, BlockType.EQUATION}
+        return any(block.block_type in multimodal_types for block in document.blocks)
+
+    async def _enhance_document_with_vlm(self, document: SourceDocument) -> SourceDocument:
+        """Enhance multimodal blocks with VLM analysis."""
+        from ragmax.domain.indexing.context import ContextConfig, ContextExtractor
+
+        context_extractor = ContextExtractor()
+        config = ContextConfig(
+            context_window=1,
+            context_mode="page",
+            max_context_tokens=2000,
+            include_headers=True,
+            include_captions=True,
+        )
+
+        enhanced_blocks = []
+        for idx, block in enumerate(document.blocks):
+            from ragmax.domain.indexing.blocks import BlockType
+            if block.block_type not in {BlockType.IMAGE, BlockType.TABLE}:
+                enhanced_blocks.append(block)
+                continue
+
+            context = context_extractor.extract_context(
+                blocks=document.blocks,
+                current_index=idx,
+                config=config,
+            )
+
+            try:
+                enhanced_block = await self._modal_processor.process_block(
+                    block=block,
+                    context=context,
+                    section_path=block.section_hint,
+                )
+                enhanced_blocks.append(enhanced_block)
+            except Exception as exc:
+                logger.warning(
+                    "VLM enhancement failed for block %s: %s",
+                    block.block_id,
+                    exc,
+                    exc_info=True,
+                )
+                enhanced_blocks.append(block)
+
+        return replace(document, blocks=tuple(enhanced_blocks))
 
 
 def _is_vector_indexable_node(node: IndexNode) -> bool:
@@ -1389,17 +1464,6 @@ def _parse_stage(stage_name: str) -> IndexingStage:
         ) from exc
 
 
-def _profile_overrides_from_run(run: IndexPipelineRunRecord) -> Any:
-    from ragmax.application.indexing.dtos import ProfileOverrides
-
-    profile_overrides = dict((run.overrides or {}).get("profile") or {})
-    return ProfileOverrides(
-        chunk_size=profile_overrides.get("chunk_size"),
-        chunk_overlap=profile_overrides.get("chunk_overlap"),
-        options=dict(profile_overrides.get("options") or {}),
-    )
-
-
 def _manifest_from_stored_artifact(
     *,
     stored: Any,
@@ -1444,8 +1508,7 @@ def _run_with_stage_success(
     return replace(
         run,
         status=status,
-        effective_profile=updates.get("effective_profile", run.effective_profile),
-        effective_parser=updates.get("effective_parser", run.effective_parser),
+        config={**run.config, **dict(updates.get("config") or {})},
         summary=summary,
         error_message=None,
         finished_at=datetime.now(UTC) if status == IndexPipelineStatus.SUCCEEDED else None,
@@ -1572,19 +1635,6 @@ def _index_node_from_artifact(payload: dict[str, Any]) -> IndexNode:
     )
 
 
-def _profile_from_payload(payload: dict[str, Any]) -> IndexingProfile:
-    return IndexingProfile(
-        name=IndexingProfileName(payload["name"]),
-        description=payload["description"],
-        chunker=payload["chunker"],
-        chunk_size=payload["chunk_size"],
-        chunk_overlap=payload["chunk_overlap"],
-        node_graph_mode=NodeGraphMode(payload["node_graph_mode"]),
-        supported_media_types=tuple(payload.get("supported_media_types") or ()),
-        text_collection=payload.get("text_collection") or "ragmax_text_nodes",
-        visual_collection=payload.get("visual_collection") or "ragmax_visual_nodes",
-        options=dict(payload.get("options") or {}),
-    )
 
 
 def _summary_from_payload(payload: dict[str, Any]) -> IndexingSummary:

@@ -1,7 +1,6 @@
-import { Paper, Group, Text, Tooltip } from '@mantine/core'
+import { Paper, Text, Tooltip } from '@mantine/core'
 import {
   Boxes,
-  Brain,
   FileCode2,
   Layers3,
   ScanSearch,
@@ -32,12 +31,6 @@ const STAGES: Array<{
     labelKey: 'indexing.parseStage',
     descriptionKey: 'indexing.parseStageDescription',
     icon: ScanSearch,
-  },
-  {
-    name: 'analyze_profile',
-    labelKey: 'indexing.analyzeStage',
-    descriptionKey: 'indexing.analyzeStageDescription',
-    icon: Brain,
   },
   {
     name: 'chunk_nodes',

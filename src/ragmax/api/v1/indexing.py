@@ -12,7 +12,6 @@ from ragmax.application.indexing.dtos import (
     IndexArtifactDataResult,
     IndexPipelineRunResult,
     PreviewIndexingCommand,
-    ProfileOverrides,
     SourceInput,
     SourceInputBlock,
     StageArtifactsResult,
@@ -30,19 +29,6 @@ router = APIRouter(
     tags=["indexing"],
     dependencies=[Depends(require_route_permission(ROUTE_INDEXING))],
 )
-
-
-class IndexingProfileResponse(BaseModel):
-    name: str
-    description: str
-    chunker: str
-    chunk_size: int = Field(gt=0)
-    chunk_overlap: int = Field(ge=0)
-    node_graph_mode: str
-    supported_media_types: list[str]
-    text_collection: str
-    visual_collection: str
-    options: dict[str, Any]
 
 
 class SourceParserResponse(BaseModel):
@@ -86,24 +72,12 @@ class SourcePayload(BaseModel):
         return self
 
 
-class ProfileOverridesPayload(BaseModel):
-    chunk_size: int | None = Field(default=None, gt=0)
-    chunk_overlap: int | None = Field(default=None, ge=0)
-    options: dict[str, Any] = Field(default_factory=dict)
-
-
 class IndexingPreviewRequest(BaseModel):
-    profile_name: str | None = None
-    parser_name: str | None = None
-    parser_options: dict[str, Any] = Field(default_factory=dict)
-    overrides: ProfileOverridesPayload = Field(default_factory=ProfileOverridesPayload)
+    parser: str | None = None
+    parser_config: dict[str, Any] = Field(default_factory=dict)
+    chunker: str | None = None
+    chunk_config: dict[str, Any] = Field(default_factory=dict)
     source: SourcePayload
-
-
-class SourceAnalysisResponse(BaseModel):
-    recommended_profile: str
-    reasons: list[str]
-    traits: dict[str, Any]
 
 
 class ContentBlockResponse(BaseModel):
@@ -173,11 +147,11 @@ class IndexJobResponse(BaseModel):
     job_id: str
     source_id: str
     status: str
-    requested_profile: str | None
-    effective_profile: str | None
+    requested_chunker: str | None
+    effective_chunker: str | None
     requested_parser: str | None
     effective_parser: str | None
-    overrides: dict[str, Any]
+    config: dict[str, Any]
     summary: dict[str, Any]
     error_message: str | None
     vector_status: str | None
@@ -186,9 +160,9 @@ class IndexJobResponse(BaseModel):
 
 
 class IndexingPreviewResponse(BaseModel):
-    analysis: SourceAnalysisResponse
-    effective_profile: IndexingProfileResponse
     effective_parser: str
+    effective_chunker: str
+    effective_config: dict[str, Any]
     blocks: list[ContentBlockResponse]
     nodes: list[IndexNodeResponse]
     summary: IndexingSummaryResponse
@@ -236,11 +210,7 @@ class IndexPipelineRunResponse(BaseModel):
     run_id: str
     source_id: str
     status: str
-    requested_profile: str | None
-    effective_profile: str | None
-    requested_parser: str | None
-    effective_parser: str | None
-    overrides: dict[str, Any]
+    config: dict[str, Any]
     summary: dict[str, Any]
     error_message: str | None
     created_at: str | None
@@ -264,16 +234,6 @@ class ArtifactDataResponse(BaseModel):
     has_more: bool
 
 
-@router.get("/profiles", response_model=list[IndexingProfileResponse])
-async def indexing_profiles(
-    service: Annotated[IndexingService, Depends(get_indexing_service)],
-) -> list[IndexingProfileResponse]:
-    return [
-        IndexingProfileResponse.model_validate(profile.to_dict())
-        for profile in service.list_profiles()
-    ]
-
-
 @router.get("/parsers", response_model=list[SourceParserResponse])
 async def source_parsers(
     service: Annotated[IndexingService, Depends(get_indexing_service)],
@@ -292,14 +252,10 @@ async def preview_indexing(
     try:
         result = await service.preview(
             PreviewIndexingCommand(
-                profile_name=request.profile_name,
-                parser_name=request.parser_name,
-                parser_options=request.parser_options,
-                overrides=ProfileOverrides(
-                    chunk_size=request.overrides.chunk_size,
-                    chunk_overlap=request.overrides.chunk_overlap,
-                    options=request.overrides.options,
-                ),
+                parser=request.parser,
+                parser_config=request.parser_config,
+                chunker=request.chunker,
+                chunk_config=request.chunk_config,
                 source=SourceInput(
                     source_id=request.source.source_id,
                     notebook_id=request.source.notebook_id,
@@ -334,13 +290,9 @@ async def preview_indexing(
 
 def build_indexing_preview_response(result) -> IndexingPreviewResponse:
     return IndexingPreviewResponse(
-        analysis=SourceAnalysisResponse(
-            recommended_profile=result.analysis.recommended_profile.value,
-            reasons=list(result.analysis.reasons),
-            traits=result.analysis.traits,
-        ),
-        effective_profile=IndexingProfileResponse.model_validate(result.effective_profile.to_dict()),
         effective_parser=result.effective_parser,
+        effective_chunker=result.effective_chunker,
+        effective_config=result.effective_config,
         blocks=[
             ContentBlockResponse.model_validate(
                 {
@@ -379,9 +331,9 @@ async def get_indexing_job(
         job_id=job.job_id,
         source_id=job.source_id,
         status=job.status.value,
-        requested_profile=job.requested_profile,
-        effective_profile=job.effective_profile,
-        overrides=job.overrides,
+        requested_chunker=job.requested_chunker,
+        effective_chunker=job.effective_chunker,
+        config=job.config,
         summary=job.summary,
         error_message=job.error_message,
         vector_status=job.vector_status,
@@ -412,9 +364,9 @@ async def get_indexing_artifacts(
             job_id=result.job.job_id,
             source_id=result.job.source_id,
             status=result.job.status.value,
-            requested_profile=result.job.requested_profile,
-            effective_profile=result.job.effective_profile,
-            overrides=result.job.overrides,
+            requested_chunker=result.job.requested_chunker,
+            effective_chunker=result.job.effective_chunker,
+            config=result.job.config,
             summary=result.job.summary,
             error_message=result.job.error_message,
             vector_status=result.job.vector_status,
@@ -577,11 +529,7 @@ def build_pipeline_run_response(run) -> IndexPipelineRunResponse:
         run_id=run.run_id,
         source_id=run.source_id,
         status=run.status.value,
-        requested_profile=run.requested_profile,
-        effective_profile=run.effective_profile,
-        requested_parser=run.requested_parser,
-        effective_parser=run.effective_parser,
-        overrides=run.overrides,
+        config=run.config,
         summary=run.summary,
         error_message=run.error_message,
         created_at=run.created_at.isoformat() if run.created_at else None,

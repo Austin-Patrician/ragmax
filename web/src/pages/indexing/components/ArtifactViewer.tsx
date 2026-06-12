@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import type { ArtifactData, IndexingStageName } from '@/types'
 import { SourceConfigViewer } from './viewers/SourceConfigViewer'
 import { BlocksTableViewer } from './viewers/BlocksTableViewer'
-import { ProfileAnalysisViewer } from './viewers/ProfileAnalysisViewer'
 import { ChunksTableViewer } from './viewers/ChunksTableViewer'
 import { QualityEnrichViewer } from './viewers/QualityEnrichViewer'
 import { VectorStatsViewer } from './viewers/VectorStatsViewer'
@@ -92,8 +91,6 @@ function renderViewer(stageName: IndexingStageName, artifactData: ArtifactData) 
       return <SourceConfigViewer data={artifactData} />
     case 'parse_blocks':
       return <BlocksTableViewer data={artifactData} />
-    case 'analyze_profile':
-      return <ProfileAnalysisViewer data={artifactData} />
     case 'chunk_nodes':
       return <ChunksTableViewer data={artifactData} />
     case 'quality_enrich':

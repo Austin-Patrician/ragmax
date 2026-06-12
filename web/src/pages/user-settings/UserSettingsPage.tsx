@@ -5,14 +5,12 @@ import {
   Button,
   Divider,
   Group,
+  ActionIcon,
   Loader,
   Modal,
   NumberInput,
-  Paper,
   PasswordInput,
-  ScrollArea,
   Select,
-  SimpleGrid,
   Stack,
   Switch,
   Text,
@@ -24,24 +22,15 @@ import { notifications } from '@mantine/notifications'
 import {
   AlertCircle,
   Box,
-  Brain,
-  Check,
   ChevronDown,
-  Clock,
-  Compass,
-  Copy,
   Cpu,
   Database,
   FileText,
-  Flame,
   Globe,
   HardDrive,
   HelpCircle,
   KeyRound,
-  Laptop,
   Layers,
-  Lock,
-  Mail,
   MessageSquare,
   Network,
   Pencil,
@@ -50,12 +39,7 @@ import {
   Save,
   Search,
   Settings,
-  Shield,
-  ShieldCheck,
   Sliders,
-  Smile,
-  Sparkles,
-  Terminal,
   Trash2,
   User,
   X,
@@ -80,8 +64,8 @@ import {
 import type {
   ModelAiType,
   ModelBindingKey,
+  ModelProvider,
   ProviderPreset,
-  ProviderType,
   RuntimeConfigurationField,
 } from '@/types'
 import { formatApiError } from '@/utils/apiError'
@@ -101,7 +85,9 @@ const classes = {
   formBody: styles.formBody ?? '',
   identity: styles.identity ?? '',
   identityAvatar: styles.identityAvatar ?? '',
+  identityText: styles.identityText ?? '',
   largeAvatar: styles.largeAvatar ?? '',
+  logoutButton: styles.logoutButton ?? '',
   modelSection: styles.modelSection ?? '',
   modelSectionHeader: styles.modelSectionHeader ?? '',
   modelSectionSubtitle: styles.modelSectionSubtitle ?? '',
@@ -361,7 +347,6 @@ export function UserSettingsPage() {
 
 
 function ProfilePanel() {
-  const { t } = useTranslation()
   const profile = useUserSettingsProfile()
 
   if (profile.isLoading) {
@@ -765,13 +750,23 @@ function ModelProvidersPanel() {
     }
   }
 
-  const ALL_FILTER_TAGS = ['ALL', 'LLM', 'EMBEDDING', 'RERANK', 'TTS', 'ASR', 'VLM', 'MODERATION', 'OCR'] as const
+  const ALL_FILTER_TAGS: Array<'ALL' | ModelAiType> = [
+    'ALL',
+    'llm',
+    'embedding',
+    'rerank',
+    'tts',
+    'asr',
+    'vlm',
+    'moderation',
+    'ocr',
+  ]
 
   const filteredPresets = data.presets.filter((preset) => {
     const matchesSearch = preset.name.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesFilter =
       filterChip === 'ALL' ||
-      preset.capabilities.some((cap) => cap.toUpperCase() === filterChip)
+      preset.capabilities.some((cap) => cap === filterChip)
     return matchesSearch && matchesFilter
   })
 
@@ -859,7 +854,7 @@ function ModelProvidersPanel() {
                               ? classes.keyIconActive
                               : classes.keyIconInactive
                           }
-                          title={
+                          aria-label={
                             provider.api_key_configured
                               ? 'API Key configured'
                               : 'No credentials needed'
@@ -1085,7 +1080,7 @@ function ModelProvidersPanel() {
                 className={`${classes.filterChip} ${isActive ? classes.filterChipActive : ''}`}
                 onClick={() => setFilterChip(tag)}
               >
-                {tag}
+                {tag === 'ALL' ? tag : tag.toUpperCase()}
               </button>
             )
           })}
@@ -1716,26 +1711,6 @@ function PanelHeader({ title, subtitle }: { title: string; subtitle: string }) {
     <div className={classes.panelHeader}>
       <Title order={2}>{title}</Title>
       <Text c="dimmed">{subtitle}</Text>
-    </div>
-  )
-}
-
-function ProfileRow({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string
-  value: string
-  mono?: boolean
-}) {
-  return (
-    <div className={classes.profileRow}>
-      <Text fw={750}>{label}</Text>
-      <Text className={mono ? classes.monoValue : ''}>{value}</Text>
-      <Badge color="gray" variant="light">
-        <Check size={12} /> read only
-      </Badge>
     </div>
   )
 }

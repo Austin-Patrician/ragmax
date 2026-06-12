@@ -89,11 +89,11 @@ class SqlAlchemyIndexJobRepository:
             job_id=job.job_id,
             source_id=job.source_id,
             status=job.status.value,
-            requested_profile=job.requested_profile,
-            effective_profile=job.effective_profile,
+            requested_profile=job.requested_chunker,
+            effective_profile=job.effective_chunker,
             requested_parser=job.requested_parser,
             effective_parser=job.effective_parser,
-            overrides=job.overrides,
+            overrides=job.config,
             summary=job.summary,
             error_message=job.error_message,
             vector_status=job.vector_status,
@@ -118,11 +118,11 @@ class SqlAlchemyIndexJobRepository:
             raise ValueError(f"Index job does not exist: {job.job_id}")
 
         model.status = job.status.value
-        model.requested_profile = job.requested_profile
-        model.effective_profile = job.effective_profile
+        model.requested_profile = job.requested_chunker
+        model.effective_profile = job.effective_chunker
         model.requested_parser = job.requested_parser
         model.effective_parser = job.effective_parser
-        model.overrides = job.overrides
+        model.overrides = job.config
         model.summary = job.summary
         model.error_message = job.error_message
         model.vector_status = job.vector_status
@@ -142,11 +142,11 @@ class SqlAlchemyIndexPipelineRunRepository:
             run_id=run.run_id,
             source_id=run.source_id,
             status=run.status.value,
-            requested_profile=run.requested_profile,
-            effective_profile=run.effective_profile,
-            requested_parser=run.requested_parser,
-            effective_parser=run.effective_parser,
-            overrides=run.overrides,
+            requested_profile=run.config.get("chunker"),
+            effective_profile=run.config.get("chunker"),
+            requested_parser=run.config.get("parser"),
+            effective_parser=run.config.get("parser"),
+            overrides=run.config,
             summary=run.summary,
             error_message=run.error_message,
             created_at=run.created_at or _utc_now(),
@@ -196,11 +196,11 @@ class SqlAlchemyIndexPipelineRunRepository:
             raise ValueError(f"Index pipeline run does not exist: {run.run_id}")
 
         model.status = run.status.value
-        model.requested_profile = run.requested_profile
-        model.effective_profile = run.effective_profile
-        model.requested_parser = run.requested_parser
-        model.effective_parser = run.effective_parser
-        model.overrides = run.overrides
+        model.requested_profile = run.config.get("chunker")
+        model.effective_profile = run.config.get("chunker")
+        model.requested_parser = run.config.get("parser")
+        model.effective_parser = run.config.get("parser")
+        model.overrides = run.config
         model.summary = run.summary
         model.error_message = run.error_message
         model.started_at = run.started_at
@@ -497,11 +497,11 @@ def _job_record_from_model(model: IndexJobModel) -> IndexJobRecord:
         job_id=model.job_id,
         source_id=model.source_id,
         status=IndexJobStatus(model.status),
-        requested_profile=model.requested_profile,
-        effective_profile=model.effective_profile,
+        requested_chunker=model.requested_profile,
+        effective_chunker=model.effective_profile,
         requested_parser=model.requested_parser,
         effective_parser=model.effective_parser,
-        overrides=dict(model.overrides or {}),
+        config=dict(model.overrides or {}),
         summary=dict(model.summary or {}),
         error_message=model.error_message,
         vector_status=model.vector_status,
@@ -518,17 +518,22 @@ def _pipeline_run_record_from_model(model: IndexPipelineRunModel) -> IndexPipeli
         run_id=model.run_id,
         source_id=model.source_id,
         status=IndexPipelineStatus(model.status),
-        requested_profile=model.requested_profile,
-        effective_profile=model.effective_profile,
-        requested_parser=model.requested_parser,
-        effective_parser=model.effective_parser,
-        overrides=dict(model.overrides or {}),
+        config=_pipeline_config_from_model(model),
         summary=dict(model.summary or {}),
         error_message=model.error_message,
         created_at=model.created_at,
         started_at=model.started_at,
         finished_at=model.finished_at,
     )
+
+
+def _pipeline_config_from_model(model: IndexPipelineRunModel) -> dict:
+    config = dict(model.overrides or {})
+    if model.requested_parser and "parser" not in config:
+        config["parser"] = model.requested_parser
+    if model.requested_profile and "chunker" not in config:
+        config["chunker"] = model.requested_profile
+    return config
 
 
 def _stage_run_record_from_model(model: IndexStageRunModel) -> IndexStageRunRecord:

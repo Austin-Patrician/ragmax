@@ -1,10 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from ragmax.domain.indexing.analysis import IndexingSummary, SourceAnalysis
 from ragmax.domain.indexing.documents import SourceDocument
 from ragmax.domain.indexing.entities import IndexNode
-from ragmax.domain.indexing.profiles import IndexingProfile
 from ragmax.domain.indexing.records import (
     IndexArtifactManifestRecord,
     IndexBlockRecord,
@@ -13,6 +11,7 @@ from ragmax.domain.indexing.records import (
     IndexStageRunRecord,
     SourceRecord,
 )
+from ragmax.domain.indexing.summary import IndexingSummary
 
 
 @dataclass(frozen=True)
@@ -40,19 +39,12 @@ class SourceInput:
 
 
 @dataclass(frozen=True)
-class ProfileOverrides:
-    chunk_size: int | None = None
-    chunk_overlap: int | None = None
-    options: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
 class PreviewIndexingCommand:
     source: SourceInput
-    profile_name: str | None = None
-    parser_name: str | None = None
-    parser_options: dict[str, Any] = field(default_factory=dict)
-    overrides: ProfileOverrides = field(default_factory=ProfileOverrides)
+    parser: str | None = None
+    parser_config: dict[str, Any] = field(default_factory=dict)
+    chunker: str | None = None
+    chunk_config: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -72,17 +64,17 @@ class CreateSourceCommand:
 @dataclass(frozen=True)
 class RunIndexJobCommand:
     source_id: str
-    profile_name: str | None = None
-    parser_name: str | None = None
-    parser_options: dict[str, Any] = field(default_factory=dict)
-    overrides: ProfileOverrides = field(default_factory=ProfileOverrides)
+    parser: str | None = None
+    parser_config: dict[str, Any] = field(default_factory=dict)
+    chunker: str | None = None
+    chunk_config: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
 class PreviewIndexingResult:
-    analysis: SourceAnalysis
-    effective_profile: IndexingProfile
     effective_parser: str
+    effective_chunker: str
+    effective_config: dict[str, Any]
     document: SourceDocument
     nodes: tuple[IndexNode, ...]
     summary: IndexingSummary
@@ -92,8 +84,9 @@ class PreviewIndexingResult:
 class RunIndexJobResult:
     job: IndexJobRecord
     source: SourceRecord
-    effective_profile: IndexingProfile
     effective_parser: str
+    effective_chunker: str
+    effective_config: dict[str, Any]
     nodes: tuple[IndexNode, ...]
     summary: IndexingSummary
     pipeline_run: IndexPipelineRunRecord | None = None
@@ -118,10 +111,10 @@ class DeleteSourceIndexResult:
 @dataclass(frozen=True)
 class CreateIndexPipelineRunCommand:
     source_id: str
-    profile_name: str | None = None
-    parser_name: str | None = None
-    parser_options: dict[str, Any] = field(default_factory=dict)
-    overrides: ProfileOverrides = field(default_factory=ProfileOverrides)
+    parser: str | None = None
+    parser_config: dict[str, Any] = field(default_factory=dict)
+    chunker: str | None = None
+    chunk_config: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

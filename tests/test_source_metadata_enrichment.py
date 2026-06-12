@@ -24,7 +24,7 @@ def test_node_enricher_backfills_page_numbers_from_node_range() -> None:
         blocks=(),
     )
     profile = IndexingProfile(
-        name=IndexingProfileName.SECTION_PDF,
+        name=IndexingProfileName.SECTION_AWARE,
         description="Section profile",
         chunker="section_aware",
         chunk_size=700,

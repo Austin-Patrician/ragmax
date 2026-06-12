@@ -97,6 +97,30 @@ class Settings(BaseSettings):
     retrieval_query_llm_base_url: str | None = None
     retrieval_query_llm_api_key: SecretStr | None = None
 
+    # MinerU Parser
+    mineru_api_token: SecretStr | None = None
+    mineru_api_base_url: str = "https://mineru.net"
+    mineru_model_version: str = "vlm"
+    mineru_enable_table: bool = True
+    mineru_enable_formula: bool = True
+    mineru_polling_interval: float = 2.0
+    mineru_timeout: int = 300
+
+    # VLM (Vision Language Model)
+    vlm_enabled: bool = False
+    vlm_api_key: SecretStr | None = None
+    vlm_base_url: str | None = None
+    vlm_model: str = "qwen/qwen3-vl-32b-instruct"
+    vlm_temperature: float = 0.0
+    vlm_max_tokens: int = 1000
+
+    # Context Extraction
+    context_window: int = 1
+    context_mode: str = "page"
+    max_context_tokens: int = 2000
+    include_headers: bool = True
+    include_captions: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
